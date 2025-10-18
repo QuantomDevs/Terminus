@@ -1,0 +1,250 @@
+import React, { useState, useEffect } from "react";
+import { Homepage } from "@/ui/Desktop/Homepage/Homepage.tsx";
+import { AppView } from "@/ui/Desktop/Navigation/AppView.tsx";
+import { HostManager } from "@/ui/Desktop/Apps/Host Manager/HostManager.tsx";
+import {
+  TabProvider,
+  useTabs,
+} from "@/ui/Desktop/Navigation/Tabs/TabContext.tsx";
+import { TopNavbar } from "@/ui/Desktop/Navigation/TopNavbar.tsx";
+import { AdminSettings } from "@/ui/Desktop/Admin/AdminSettings.tsx";
+import { UserProfile } from "@/ui/Desktop/User/UserProfile.tsx";
+import { SettingsPage } from "@/ui/Desktop/Settings/SettingsPage.tsx";
+import RemoteEditor from "@/ui/Desktop/Apps/Editor/RemoteEditor.tsx";
+import { Toaster } from "@/components/ui/sonner.tsx";
+import { VersionCheckModal } from "@/components/ui/version-check-modal.tsx";
+import { QuickConnectModal } from "@/components/ui/QuickConnectModal.tsx";
+import { getUserInfo, getCookie } from "@/ui/main-axios.ts";
+
+function AppContent() {
+  const [view, setView] = useState<string>("homepage");
+  const [mountedViews, setMountedViews] = useState<Set<string>>(
+    new Set(["homepage"]),
+  );
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [username, setUsername] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [showVersionCheck, setShowVersionCheck] = useState(true);
+  const [isTopbarOpen, setIsTopbarOpen] = useState<boolean>(() => {
+    const saved = localStorage.getItem("topNavbarOpen");
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+  const [isQuickConnectOpen, setIsQuickConnectOpen] = useState(false);
+  const { currentTab, tabs, removeTab } = useTabs();
+
+  useEffect(() => {
+    const checkAuth = () => {
+      setAuthLoading(true);
+      getUserInfo()
+        .then((meRes) => {
+          setIsAuthenticated(true);
+          setIsAdmin(!!meRes.is_admin);
+          setUsername(meRes.username || null);
+
+          if (!meRes.data_unlocked) {
+            console.warn("User data is locked - re-authentication required");
+            setIsAuthenticated(false);
+            setIsAdmin(false);
+            setUsername(null);
+          }
+        })
+        .catch((err) => {
+          setIsAuthenticated(false);
+          setIsAdmin(false);
+          setUsername(null);
+
+          const errorCode = err?.response?.data?.code;
+          if (errorCode === "SESSION_EXPIRED") {
+            console.warn("Session expired - please log in again");
+          }
+        })
+        .finally(() => setAuthLoading(false));
+    };
+
+    checkAuth();
+
+    const handleStorageChange = () => checkAuth();
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("topNavbarOpen", JSON.stringify(isTopbarOpen));
+  }, [isTopbarOpen]);
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Cmd+K (macOS) or Alt+K (Windows/Linux) to toggle Quick Connect
+      if (
+        ((e.metaKey && !e.ctrlKey) || (!e.metaKey && e.altKey)) &&
+        e.key === "k"
+      ) {
+        e.preventDefault();
+        setIsQuickConnectOpen((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, []);
+
+  const handleSelectView = (nextView: string) => {
+    setMountedViews((prev) => {
+      if (prev.has(nextView)) return prev;
+      const next = new Set(prev);
+      next.add(nextView);
+      return next;
+    });
+    setView(nextView);
+  };
+
+  const handleAuthSuccess = (authData: {
+    isAdmin: boolean;
+    username: string | null;
+    userId: string | null;
+  }) => {
+    setIsAuthenticated(true);
+    setIsAdmin(authData.isAdmin);
+    setUsername(authData.username);
+  };
+
+  const currentTabData = tabs.find((tab) => tab.id === currentTab);
+  const showTerminalView =
+    currentTabData?.type === "terminal" ||
+    currentTabData?.type === "local_terminal" ||
+    currentTabData?.type === "server" ||
+    currentTabData?.type === "file_manager";
+  const showSshManager = currentTabData?.type === "ssh_manager";
+  const showAdmin = currentTabData?.type === "admin";
+  const showProfile = currentTabData?.type === "user_profile";
+  const showSettings = currentTabData?.type === "settings";
+  const showRemoteEditor = currentTabData?.type === "remote_editor";
+
+  return (
+    <div>
+      {showVersionCheck && (
+        <VersionCheckModal
+          onDismiss={() => setShowVersionCheck(false)}
+          onContinue={() => setShowVersionCheck(false)}
+          isAuthenticated={isAuthenticated}
+        />
+      )}
+
+      {!isAuthenticated && !authLoading && !showVersionCheck && (
+        <div>
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundImage: `linear-gradient(
+                            135deg,
+                            transparent 0%,
+                            transparent 49%,
+                            rgba(255, 255, 255, 0.03) 49%,
+                            rgba(255, 255, 255, 0.03) 51%,
+                            transparent 51%,
+                            transparent 100%
+                        )`,
+              backgroundSize: "80px 80px",
+            }}
+          />
+        </div>
+      )}
+
+      {!isAuthenticated && !authLoading && !showVersionCheck && (
+        <div className="fixed inset-0 flex items-center justify-center z-[10000]">
+          <Homepage
+            onSelectView={handleSelectView}
+            isAuthenticated={isAuthenticated}
+            authLoading={authLoading}
+            onAuthSuccess={handleAuthSuccess}
+            isTopbarOpen={isTopbarOpen}
+          />
+        </div>
+      )}
+
+      {isAuthenticated && (
+        <div className="min-h-svh">
+          <div
+            className="h-screen w-full visible pointer-events-auto static overflow-hidden"
+            style={{ display: showTerminalView ? "block" : "none" }}
+          >
+            <AppView isTopbarOpen={isTopbarOpen} />
+          </div>
+
+          {showSshManager && (
+            <div className="h-screen w-full visible pointer-events-auto static overflow-hidden">
+              <HostManager
+                onSelectView={handleSelectView}
+                isTopbarOpen={isTopbarOpen}
+              />
+            </div>
+          )}
+
+          {showAdmin && (
+            <div className="h-screen w-full visible pointer-events-auto static overflow-hidden">
+              <AdminSettings isTopbarOpen={isTopbarOpen} />
+            </div>
+          )}
+
+          {showProfile && (
+            <div className="h-screen w-full visible pointer-events-auto static overflow-auto">
+              <UserProfile isTopbarOpen={isTopbarOpen} />
+            </div>
+          )}
+
+          {showSettings && (
+            <div className="h-screen w-full visible pointer-events-auto static overflow-hidden">
+              <SettingsPage isTopbarOpen={isTopbarOpen} />
+            </div>
+          )}
+
+          {showRemoteEditor && currentTabData?.hostConfig && (
+            <div className="h-screen w-full visible pointer-events-auto static overflow-hidden">
+              <RemoteEditor
+                filePath={currentTabData.hostConfig.filePath}
+                sshSessionId={currentTabData.hostConfig.sshSessionId}
+                sshHost={currentTabData.hostConfig.sshHost}
+                onClose={() => removeTab(currentTab!)}
+              />
+            </div>
+          )}
+
+          <TopNavbar
+            isTopbarOpen={isTopbarOpen}
+            setIsTopbarOpen={setIsTopbarOpen}
+            isAdmin={isAdmin}
+            username={username}
+            onOpenQuickConnect={() => setIsQuickConnectOpen(true)}
+          />
+        </div>
+      )}
+
+      {isAuthenticated && (
+        <QuickConnectModal
+          isOpen={isQuickConnectOpen}
+          onClose={() => setIsQuickConnectOpen(false)}
+        />
+      )}
+
+      <Toaster
+        position="bottom-right"
+        richColors={false}
+        closeButton
+        duration={5000}
+        offset={20}
+      />
+    </div>
+  );
+}
+
+function DesktopApp() {
+  return (
+    <TabProvider>
+      <AppContent />
+    </TabProvider>
+  );
+}
+
+export default DesktopApp;

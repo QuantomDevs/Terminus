@@ -1,0 +1,111 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Build outputs
+dist/
+dist-ssr/
+out/
+build/
+.webpack/
+release/
+
+# Environment and config
+.env
+.env.local
+.env.*.local
+*.local
+
+# Database and data
+/db/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# SSL certificates
+/ssl/
+*.pem
+*.key
+*.crt
+
+# Uploads and temp files
+uploads/
+tmp/
+temp/
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# IDE and editor files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Claude Code
+/.claude/
+.claude-code/
+CLAUDE.md
+project-informations
+
+# GitHub workflows (if not needed for project)
+/.github/
+
+# Electron
+.webpack/
+main.js
+preload.js
+
+# Coverage and test reports
+coverage/
+.nyc_output/
+*.lcov
+
+# Cache directories
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+
+# TypeScript
+*.tsbuildinfo
+
+# Optional npm cache
+.npm/
+
+# Optional REPL history
+.node_repl_history
+
+# Yarn
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
