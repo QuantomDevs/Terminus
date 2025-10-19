@@ -354,11 +354,9 @@ export function TopNavbar({
   return (
     <div>
       <div
-        className="fixed z-10 h-[32px] bg-dark-bg border-2 border-dark-border rounded-lg transition-all duration-200 ease-linear flex flex-row transform-none m-0 p-0"
+        className="fixed z-10 h-[38px] w-[100%] bg-background transition-all duration-200 ease-linear flex flex-row transform-none m-0 p-0"
         style={{
-          top: "0.5rem",
-          left: isElectron() ? "0.5rem" : "26px",
-          right: isElectron() ? "0.5rem" : "17px",
+          top: "0rem",
           WebkitAppRegion: isElectron() ? "drag" : "none",
         } as React.CSSProperties}
         onDoubleClick={handleHeaderDoubleClick}
