@@ -29,7 +29,11 @@ export const LocalTerminal = forwardRef<any, LocalTerminalProps>(
     ref,
   ) {
     const { t } = useTranslation();
-    const { instance: terminal, ref: xtermRef } = useXTerm();
+    const { instance: terminal, ref: xtermRef } = useXTerm({
+      options: {
+        allowProposedApi: true,
+      },
+    });
     const fitAddonRef = useRef<FitAddon | null>(null);
     const webSocketRef = useRef<WebSocket | null>(null);
     const resizeTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -407,7 +411,6 @@ export const LocalTerminal = forwardRef<any, LocalTerminalProps>(
           },
           rightClickSelectsWord: !getUseRightClickCopyPaste(),
           scrollback: 10000,
-          allowProposedApi: true,
         };
 
         setTimeout(() => {

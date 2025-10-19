@@ -44,7 +44,11 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
   }
 
   const { t } = useTranslation();
-  const { instance: terminal, ref: xtermRef } = useXTerm();
+  const { instance: terminal, ref: xtermRef } = useXTerm({
+    options: {
+      allowProposedApi: true,
+    },
+  });
   const fitAddonRef = useRef<FitAddon | null>(null);
   const webSocketRef = useRef<WebSocket | null>(null);
   const resizeTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -242,8 +246,7 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
         const rows = terminal.rows;
         connectToHost(cols, rows);
       }
-
-      isReconnectingRef.current = false;
+      // Don't reset isReconnectingRef here - let it be reset on successful connection or final failure
     }, 2000 * reconnectAttempts.current);
   }
 
@@ -523,7 +526,6 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
       rightClickSelectsWord: false,
       fastScrollModifier: "alt",
       fastScrollSensitivity: 5,
-      allowProposedApi: true,
       minimumContrastRatio: 1,
       letterSpacing: 0,
       lineHeight: 1.2,
@@ -640,11 +642,34 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
   }, [xtermRef, terminal]);
 
   useEffect(() => {
-    if (!terminal || !hostConfig || !visible) return;
+    if (
+      !terminal ||
+      !hostConfig ||
+      !visible ||
+      isConnected ||
+      isConnectingRef.current ||
+      isReconnectingRef.current
+    ) {
+      return;
+    }
 
-    if (isConnected || isConnecting) return;
+    const connect = () => {
+      const jwtToken = getCookie("jwt");
+      if (!jwtToken || jwtToken.trim() === "") {
+        setConnectionError("Authentication required");
+        return;
+      }
 
-    setIsConnecting(true);
+      fitAddonRef.current?.fit();
+      if (terminal) {
+        scheduleNotify(terminal.cols, terminal.rows);
+        hardRefresh();
+        if (!splitScreen) {
+          terminal.focus();
+        }
+        connectToHost(terminal.cols, terminal.rows);
+      }
+    };
 
     const readyFonts =
       (document as any).fonts?.ready instanceof Promise
@@ -652,31 +677,9 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
         : Promise.resolve();
 
     readyFonts.then(() => {
-      setTimeout(() => {
-        fitAddonRef.current?.fit();
-        if (terminal) scheduleNotify(terminal.cols, terminal.rows);
-        hardRefresh();
-
-        if (terminal && !splitScreen) {
-          terminal.focus();
-        }
-
-        const jwtToken = getCookie("jwt");
-
-        if (!jwtToken || jwtToken.trim() === "") {
-          setIsConnected(false);
-          setIsConnecting(false);
-          setConnectionError("Authentication required");
-          return;
-        }
-
-        const cols = terminal.cols;
-        const rows = terminal.rows;
-
-        connectToHost(cols, rows);
-      }, 200);
+      setTimeout(connect, 200);
     });
-  }, [terminal, hostConfig, visible, isConnected, isConnecting, splitScreen]);
+  }, [terminal, hostConfig, visible, splitScreen, isConnected]);
 
   useEffect(() => {
     if (isVisible && fitAddonRef.current) {

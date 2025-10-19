@@ -16,65 +16,89 @@ const userConnections = new Map<string, Set<WebSocket>>();
 
 const wss = new WebSocketServer({
   port: 30002,
-  verifyClient: async (info) => {
-    try {
-      const url = parseUrl(info.req.url!, true);
-      const token = url.query.token as string;
+  verifyClient: (info, cb) => {
+    const url = parseUrl(info.req.url!, true);
+    const token = url.query.token as string;
 
-      if (!token) {
-        sshLogger.warn("WebSocket connection rejected: missing token", {
-          operation: "websocket_auth_reject",
-          reason: "missing_token",
-          ip: info.req.socket.remoteAddress,
-        });
-        return false;
-      }
-
-      const payload = await authManager.verifyJWTToken(token);
-
-      if (!payload) {
-        sshLogger.warn("WebSocket connection rejected: invalid token", {
-          operation: "websocket_auth_reject",
-          reason: "invalid_token",
-          ip: info.req.socket.remoteAddress,
-        });
-        return false;
-      }
-
-      if (payload.pendingTOTP) {
-        sshLogger.warn(
-          "WebSocket connection rejected: TOTP verification pending",
-          {
-            operation: "websocket_auth_reject",
-            reason: "totp_pending",
-            userId: payload.userId,
-            ip: info.req.socket.remoteAddress,
-          },
-        );
-        return false;
-      }
-
-      const existingConnections = userConnections.get(payload.userId);
-      if (existingConnections && existingConnections.size >= 3) {
-        sshLogger.warn("WebSocket connection rejected: too many connections", {
-          operation: "websocket_auth_reject",
-          reason: "connection_limit",
-          userId: payload.userId,
-          currentConnections: existingConnections.size,
-          ip: info.req.socket.remoteAddress,
-        });
-        return false;
-      }
-
-      return true;
-    } catch (error) {
-      sshLogger.error("WebSocket authentication error", error, {
-        operation: "websocket_auth_error",
+    if (!token) {
+      sshLogger.warn("WebSocket connection rejected: missing token", {
+        operation: "websocket_auth_reject",
+        reason: "missing_token",
         ip: info.req.socket.remoteAddress,
       });
-      return false;
+      cb(false, 401, "Unauthorized");
+      return;
     }
+
+    authManager
+      .verifyJWTToken(token)
+      .then((payload) => {
+        if (!payload) {
+          sshLogger.warn("WebSocket connection rejected: invalid token", {
+            operation: "websocket_auth_reject",
+            reason: "invalid_token",
+            ip: info.req.socket.remoteAddress,
+          });
+          cb(false, 401, "Unauthorized");
+          return;
+        }
+
+        if (payload.pendingTOTP) {
+          sshLogger.warn(
+            "WebSocket connection rejected: TOTP verification pending",
+            {
+              operation: "websocket_auth_reject",
+              reason: "totp_pending",
+              userId: payload.userId,
+              ip: info.req.socket.remoteAddress,
+            },
+          );
+          cb(false, 401, "Unauthorized");
+          return;
+        }
+
+        const existingConnections = userConnections.get(payload.userId);
+        if (existingConnections && existingConnections.size >= 3) {
+          sshLogger.warn(
+            "WebSocket connection rejected: too many connections",
+            {
+              operation: "websocket_auth_reject",
+              reason: "connection_limit",
+              userId: payload.userId,
+              currentConnections: existingConnections.size,
+              ip: info.req.socket.remoteAddress,
+            },
+          );
+          cb(false, 429, "Too Many Connections");
+          return;
+        }
+
+        cb(true);
+      })
+      .catch((error) => {
+        sshLogger.error("WebSocket authentication error", error, {
+          operation: "websocket_auth_error",
+          ip: info.req.socket.remoteAddress,
+        });
+        cb(false, 500, "Internal Server Error");
+      });
   },
+});
+
+// Add listening event to confirm server started
+wss.on("listening", () => {
+  sshLogger.info("SSH Terminal WebSocket server started on port 30002", {
+    operation: "terminal_server_started",
+    port: 30002,
+  });
+});
+
+// Add error handler for server startup failures
+wss.on("error", (error) => {
+  sshLogger.error("SSH Terminal WebSocket server error", error, {
+    operation: "terminal_server_error",
+    port: 30002,
+  });
 });
 
 wss.on("connection", async (ws: WebSocket, req) => {

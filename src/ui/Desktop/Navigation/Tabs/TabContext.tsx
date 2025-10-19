@@ -185,6 +185,14 @@ export function TabProvider({ children }: TabProviderProps) {
   useEffect(() => {
     const restoreSession = async () => {
       try {
+        // Check if user is authenticated before attempting to restore session
+        const token = localStorage.getItem("jwt");
+        if (!token) {
+          // No JWT token, skip session restoration
+          setSessionRestored(true);
+          return;
+        }
+
         const sessionData = await getSessionState();
 
         if (sessionData && sessionData.sessionData && sessionData.sessionData.length > 0) {
@@ -225,7 +233,9 @@ export function TabProvider({ children }: TabProviderProps) {
           }
         }
       } catch (error) {
-        console.error("Failed to restore session:", error);
+        // Silently fail if session restoration fails (e.g., auth error, network error)
+        // This prevents error spam when user is not logged in
+        console.debug("Session restoration skipped:", error);
       } finally {
         setSessionRestored(true);
       }
@@ -240,6 +250,13 @@ export function TabProvider({ children }: TabProviderProps) {
 
     const saveSession = async () => {
       try {
+        // Check if user is authenticated before saving session
+        const token = localStorage.getItem("jwt");
+        if (!token) {
+          // No JWT token, skip session save
+          return;
+        }
+
         // Serialize tabs, excluding terminalRef and ssh_manager tab
         const serializableTabs = tabs
           .filter((tab) => tab.type !== "ssh_manager")
@@ -256,7 +273,8 @@ export function TabProvider({ children }: TabProviderProps) {
           await deleteSessionState();
         }
       } catch (error) {
-        console.error("Failed to save session:", error);
+        // Silently fail if session save fails (e.g., auth error, network error)
+        console.debug("Session save skipped:", error);
       }
     };
 
@@ -269,6 +287,13 @@ export function TabProvider({ children }: TabProviderProps) {
   useEffect(() => {
     const handleBeforeUnload = () => {
       try {
+        // Check if user is authenticated before saving session
+        const token = localStorage.getItem("jwt");
+        if (!token) {
+          // No JWT token, skip session save
+          return;
+        }
+
         // Serialize tabs, excluding terminalRef and ssh_manager tab
         const serializableTabs = tabs
           .filter((tab) => tab.type !== "ssh_manager")
@@ -285,13 +310,14 @@ export function TabProvider({ children }: TabProviderProps) {
 
           if (navigator.sendBeacon) {
             // Use sendBeacon for reliable data transmission during page unload
-            const token = localStorage.getItem("jwt");
-            const url = `/session?token=${encodeURIComponent(token || "")}`;
+            // The backend accepts JWT as query parameter for sendBeacon compatibility
+            const baseUrl = import.meta.env.VITE_API_URL || `http://localhost:${import.meta.env.VITE_API_PORT || 30001}`;
+            const url = `${baseUrl}/session?token=${encodeURIComponent(token)}`;
             navigator.sendBeacon(url, blob);
           }
         }
       } catch (error) {
-        console.error("Failed to save session on beforeunload:", error);
+        console.debug("Session save on beforeunload skipped:", error);
       }
     };
 

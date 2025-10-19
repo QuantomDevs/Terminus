@@ -8,6 +8,7 @@ import { eq, and } from "drizzle-orm";
 import { fileLogger } from "../utils/logger.js";
 import { SimpleDBOps } from "../utils/simple-db-ops.js";
 import { AuthManager } from "../utils/auth-manager.js";
+import { emitProgressEvent } from "./transfer-progress.js";
 
 function isExecutableFile(permissions: string, fileName: string): boolean {
   const hasExecutePermission =
@@ -888,6 +889,7 @@ app.post("/ssh/file_manager/ssh/uploadFile", async (req, res) => {
     fileName,
     hostId,
     userId,
+    transferId,
   } = req.body;
   const sshConn = sshSessions[sessionId];
 
@@ -915,6 +917,17 @@ app.post("/ssh/file_manager/ssh/uploadFile", async (req, res) => {
   const fullPath = filePath.endsWith("/")
     ? filePath + fileName
     : filePath + "/" + fileName;
+
+  // Emit start event if transferId provided
+  if (transferId) {
+    emitProgressEvent({
+      transferId,
+      type: 'started',
+      bytesTransferred: 0,
+      totalBytes: contentSize,
+      timestamp: Date.now(),
+    });
+  }
 
   const trySFTP = () => {
     try {
@@ -950,10 +963,48 @@ app.post("/ssh/file_manager/ssh/uploadFile", async (req, res) => {
 
         let hasError = false;
         let hasFinished = false;
+        let bytesWritten = 0;
+
+        // Emit progress event at start
+        if (transferId) {
+          emitProgressEvent({
+            transferId,
+            type: 'progress',
+            bytesTransferred: 0,
+            totalBytes: contentSize,
+            timestamp: Date.now(),
+          });
+        }
+
+        writeStream.on("drain", () => {
+          // Track progress as stream drains
+          if (transferId && !hasError && !hasFinished) {
+            bytesWritten = Math.min(bytesWritten + Math.floor(contentSize / 4), contentSize);
+            emitProgressEvent({
+              transferId,
+              type: 'progress',
+              bytesTransferred: bytesWritten,
+              totalBytes: contentSize,
+              timestamp: Date.now(),
+            });
+          }
+        });
 
         writeStream.on("error", (streamErr) => {
           if (hasError || hasFinished) return;
           hasError = true;
+
+          if (transferId) {
+            emitProgressEvent({
+              transferId,
+              type: 'failed',
+              bytesTransferred: bytesWritten,
+              totalBytes: contentSize,
+              timestamp: Date.now(),
+              error: streamErr.message,
+            });
+          }
+
           fileLogger.warn(
             `SFTP write failed, trying fallback method: ${streamErr.message}`,
             {
@@ -970,6 +1021,17 @@ app.post("/ssh/file_manager/ssh/uploadFile", async (req, res) => {
         writeStream.on("finish", () => {
           if (hasError || hasFinished) return;
           hasFinished = true;
+
+          if (transferId) {
+            emitProgressEvent({
+              transferId,
+              type: 'completed',
+              bytesTransferred: contentSize,
+              totalBytes: contentSize,
+              timestamp: Date.now(),
+            });
+          }
+
           if (!res.headersSent) {
             res.json({
               message: "File uploaded successfully",
@@ -982,6 +1044,17 @@ app.post("/ssh/file_manager/ssh/uploadFile", async (req, res) => {
         writeStream.on("close", () => {
           if (hasError || hasFinished) return;
           hasFinished = true;
+
+          if (transferId) {
+            emitProgressEvent({
+              transferId,
+              type: 'completed',
+              bytesTransferred: contentSize,
+              totalBytes: contentSize,
+              timestamp: Date.now(),
+            });
+          }
+
           if (!res.headersSent) {
             res.json({
               message: "File uploaded successfully",
@@ -992,11 +1065,55 @@ app.post("/ssh/file_manager/ssh/uploadFile", async (req, res) => {
         });
 
         try {
-          writeStream.write(fileBuffer);
-          writeStream.end();
+          // For large files, split into chunks for better progress tracking
+          const CHUNK_SIZE = 64 * 1024; // 64KB chunks
+          if (fileBuffer.length > CHUNK_SIZE) {
+            let offset = 0;
+            const writeChunk = () => {
+              while (offset < fileBuffer.length) {
+                const chunk = fileBuffer.slice(offset, Math.min(offset + CHUNK_SIZE, fileBuffer.length));
+                const canContinue = writeStream.write(chunk);
+                offset += chunk.length;
+                bytesWritten = offset;
+
+                if (transferId) {
+                  emitProgressEvent({
+                    transferId,
+                    type: 'progress',
+                    bytesTransferred: bytesWritten,
+                    totalBytes: contentSize,
+                    timestamp: Date.now(),
+                  });
+                }
+
+                if (!canContinue) {
+                  writeStream.once('drain', writeChunk);
+                  return;
+                }
+              }
+              writeStream.end();
+            };
+            writeChunk();
+          } else {
+            writeStream.write(fileBuffer);
+            bytesWritten = fileBuffer.length;
+            writeStream.end();
+          }
         } catch (writeErr) {
           if (hasError || hasFinished) return;
           hasError = true;
+
+          if (transferId) {
+            emitProgressEvent({
+              transferId,
+              type: 'failed',
+              bytesTransferred: bytesWritten,
+              totalBytes: contentSize,
+              timestamp: Date.now(),
+              error: writeErr.message,
+            });
+          }
+
           fileLogger.warn(
             `SFTP write operation failed, trying fallback method: ${writeErr.message}`,
           );
@@ -1721,7 +1838,7 @@ app.put("/ssh/file_manager/ssh/moveItem", async (req, res) => {
 });
 
 app.post("/ssh/file_manager/ssh/downloadFile", async (req, res) => {
-  const { sessionId, path: filePath, hostId, userId } = req.body;
+  const { sessionId, path: filePath, hostId, userId, transferId } = req.body;
 
   if (!sessionId || !filePath) {
     fileLogger.warn("Missing download parameters", {
@@ -1750,12 +1867,36 @@ app.post("/ssh/file_manager/ssh/downloadFile", async (req, res) => {
   sshConn.client.sftp((err, sftp) => {
     if (err) {
       fileLogger.error("SFTP connection failed for download:", err);
+
+      if (transferId) {
+        emitProgressEvent({
+          transferId,
+          type: 'failed',
+          bytesTransferred: 0,
+          totalBytes: 0,
+          timestamp: Date.now(),
+          error: err.message,
+        });
+      }
+
       return res.status(500).json({ error: "SFTP connection failed" });
     }
 
     sftp.stat(filePath, (statErr, stats) => {
       if (statErr) {
         fileLogger.error("File stat failed for download:", statErr);
+
+        if (transferId) {
+          emitProgressEvent({
+            transferId,
+            type: 'failed',
+            bytesTransferred: 0,
+            totalBytes: 0,
+            timestamp: Date.now(),
+            error: statErr.message,
+          });
+        }
+
         return res
           .status(500)
           .json({ error: `Cannot access file: ${statErr.message}` });
@@ -1769,6 +1910,18 @@ app.post("/ssh/file_manager/ssh/downloadFile", async (req, res) => {
           isFile: stats.isFile(),
           isDirectory: stats.isDirectory(),
         });
+
+        if (transferId) {
+          emitProgressEvent({
+            transferId,
+            type: 'failed',
+            bytesTransferred: 0,
+            totalBytes: stats.size,
+            timestamp: Date.now(),
+            error: 'Cannot download directories or special files',
+          });
+        }
+
         return res
           .status(400)
           .json({ error: "Cannot download directories or special files" });
@@ -1783,40 +1936,166 @@ app.post("/ssh/file_manager/ssh/downloadFile", async (req, res) => {
           fileSize: stats.size,
           maxSize: MAX_FILE_SIZE,
         });
+
+        if (transferId) {
+          emitProgressEvent({
+            transferId,
+            type: 'failed',
+            bytesTransferred: 0,
+            totalBytes: stats.size,
+            timestamp: Date.now(),
+            error: `File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB`,
+          });
+        }
+
         return res.status(400).json({
           error: `File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB, file is ${(stats.size / 1024 / 1024).toFixed(2)}MB`,
         });
       }
 
-      sftp.readFile(filePath, (readErr, data) => {
-        if (readErr) {
-          fileLogger.error("File read failed for download:", readErr);
-          return res
-            .status(500)
-            .json({ error: `Failed to read file: ${readErr.message}` });
-        }
+      // Emit start event
+      if (transferId) {
+        emitProgressEvent({
+          transferId,
+          type: 'started',
+          bytesTransferred: 0,
+          totalBytes: stats.size,
+          timestamp: Date.now(),
+        });
+      }
 
-        const base64Content = data.toString("base64");
-        const fileName = filePath.split("/").pop() || "download";
+      // Use createReadStream for better progress tracking on large files
+      if (stats.size > 1024 * 1024) { // > 1MB use streaming
+        const readStream = sftp.createReadStream(filePath);
+        const chunks: Buffer[] = [];
+        let bytesRead = 0;
+        let lastProgressTime = 0;
+        const PROGRESS_THROTTLE = 100; // ms
 
-        fileLogger.success("File downloaded successfully", {
-          operation: "file_download",
-          sessionId,
-          filePath,
-          fileName,
-          fileSize: stats.size,
-          hostId,
-          userId,
+        readStream.on('data', (chunk: Buffer) => {
+          chunks.push(chunk);
+          bytesRead += chunk.length;
+
+          // Throttle progress events
+          const now = Date.now();
+          if (transferId && now - lastProgressTime >= PROGRESS_THROTTLE) {
+            emitProgressEvent({
+              transferId,
+              type: 'progress',
+              bytesTransferred: bytesRead,
+              totalBytes: stats.size,
+              timestamp: now,
+            });
+            lastProgressTime = now;
+          }
         });
 
-        res.json({
-          content: base64Content,
-          fileName: fileName,
-          size: stats.size,
-          mimeType: getMimeType(fileName),
-          path: filePath,
+        readStream.on('end', () => {
+          const data = Buffer.concat(chunks);
+          const base64Content = data.toString("base64");
+          const fileName = filePath.split("/").pop() || "download";
+
+          if (transferId) {
+            emitProgressEvent({
+              transferId,
+              type: 'completed',
+              bytesTransferred: stats.size,
+              totalBytes: stats.size,
+              timestamp: Date.now(),
+            });
+          }
+
+          fileLogger.success("File downloaded successfully", {
+            operation: "file_download",
+            sessionId,
+            filePath,
+            fileName,
+            fileSize: stats.size,
+            hostId,
+            userId,
+          });
+
+          res.json({
+            content: base64Content,
+            fileName: fileName,
+            size: stats.size,
+            mimeType: getMimeType(fileName),
+            path: filePath,
+          });
         });
-      });
+
+        readStream.on('error', (readErr) => {
+          fileLogger.error("File read stream failed for download:", readErr);
+
+          if (transferId) {
+            emitProgressEvent({
+              transferId,
+              type: 'failed',
+              bytesTransferred: bytesRead,
+              totalBytes: stats.size,
+              timestamp: Date.now(),
+              error: readErr.message,
+            });
+          }
+
+          if (!res.headersSent) {
+            res.status(500).json({ error: `Failed to read file: ${readErr.message}` });
+          }
+        });
+      } else {
+        // For small files, use readFile (faster)
+        sftp.readFile(filePath, (readErr, data) => {
+          if (readErr) {
+            fileLogger.error("File read failed for download:", readErr);
+
+            if (transferId) {
+              emitProgressEvent({
+                transferId,
+                type: 'failed',
+                bytesTransferred: 0,
+                totalBytes: stats.size,
+                timestamp: Date.now(),
+                error: readErr.message,
+              });
+            }
+
+            return res
+              .status(500)
+              .json({ error: `Failed to read file: ${readErr.message}` });
+          }
+
+          const base64Content = data.toString("base64");
+          const fileName = filePath.split("/").pop() || "download";
+
+          if (transferId) {
+            emitProgressEvent({
+              transferId,
+              type: 'completed',
+              bytesTransferred: stats.size,
+              totalBytes: stats.size,
+              timestamp: Date.now(),
+            });
+          }
+
+          fileLogger.success("File downloaded successfully", {
+            operation: "file_download",
+            sessionId,
+            filePath,
+            fileName,
+            fileSize: stats.size,
+            hostId,
+            userId,
+          });
+
+          res.json({
+            content: base64Content,
+            fileName: fileName,
+            size: stats.size,
+            mimeType: getMimeType(fileName),
+            path: filePath,
+          });
+        });
+      }
     });
   });
 });

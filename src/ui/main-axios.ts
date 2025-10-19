@@ -1251,6 +1251,7 @@ export async function uploadSSHFile(
   content: string,
   hostId?: number,
   userId?: string,
+  transferId?: string,
 ): Promise<any> {
   try {
     const response = await fileManagerApi.post("/ssh/uploadFile", {
@@ -1260,6 +1261,7 @@ export async function uploadSSHFile(
       content,
       hostId,
       userId,
+      transferId,
     });
     return response.data;
   } catch (error) {
@@ -1272,6 +1274,7 @@ export async function downloadSSHFile(
   filePath: string,
   hostId?: number,
   userId?: string,
+  transferId?: string,
 ): Promise<any> {
   try {
     const response = await fileManagerApi.post("/ssh/downloadFile", {
@@ -1279,6 +1282,7 @@ export async function downloadSSHFile(
       path: filePath,
       hostId,
       userId,
+      transferId,
     });
     return response.data;
   } catch (error) {

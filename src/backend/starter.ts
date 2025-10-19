@@ -103,6 +103,7 @@ import { systemLogger, versionLogger } from "./utils/logger.js";
     await import("./ssh/file-manager.js");
     await import("./ssh/server-stats.js");
     const localPtyModule = await import("./terminal/local-pty-manager.js");
+    const transferProgressModule = await import("./ssh/transfer-progress.js");
 
     // Import and start local file manager server
     const localFileModule = await import("./local/local-file-manager.js");
@@ -125,6 +126,17 @@ import { systemLogger, versionLogger } from "./utils/logger.js";
             operation: "shutdown_local_terminal",
           });
           await localPtyModule.shutdownLocalTerminalServer();
+        }
+
+        // Shutdown transfer progress WebSocket server
+        if (
+          transferProgressModule &&
+          typeof transferProgressModule.shutdownTransferProgressServer === "function"
+        ) {
+          systemLogger.info("Shutting down transfer progress server...", {
+            operation: "shutdown_transfer_progress",
+          });
+          await transferProgressModule.shutdownTransferProgressServer();
         }
 
         systemLogger.info("Graceful shutdown complete", {

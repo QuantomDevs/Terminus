@@ -12,6 +12,8 @@ import { useDragToDesktop } from "../../../hooks/useDragToDesktop";
 import { useDragToSystemDesktop } from "../../../hooks/useDragToSystemDesktop";
 import { useConfirmation } from "@/hooks/use-confirmation.ts";
 import { useTabs } from "@/ui/Desktop/Navigation/Tabs/TabContext";
+import { useTransferQueue, TransferQueueProvider } from "@/hooks/useTransferQueue";
+import { TransferQueue } from "@/components/ui/TransferQueue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -95,7 +97,7 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
   const { openWindow } = useWindowManager();
   const { t } = useTranslation();
   const { confirmWithToast } = useConfirmation();
-  const { addTab } = useTabContext();
+  const { addTab } = useTabs();
 
   const [currentHost, setCurrentHost] = useState<SSHHost | null>(
     initialHost || null,
@@ -186,6 +188,68 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
     sshSessionId: sshSessionId || "",
     sshHost: currentHost!,
   });
+
+  const { addTransfer, updateTransferProgress, cancelTransfer: cancelTransferInQueue } = useTransferQueue();
+  const wsRef = useRef<WebSocket | null>(null);
+
+  // WebSocket connection for transfer progress
+  useEffect(() => {
+    // Changed from 30005 to 30007 to match backend port (transfer-progress.ts)
+    const ws = new WebSocket("ws://localhost:30007");
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log("Transfer progress WebSocket connected");
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const progressEvent = JSON.parse(event.data);
+
+        // Update transfer progress based on event type
+        updateTransferProgress(progressEvent.transferId, {
+          status: progressEvent.type === 'completed' ? 'completed' :
+                  progressEvent.type === 'failed' ? 'failed' :
+                  progressEvent.type === 'cancelled' ? 'cancelled' :
+                  progressEvent.type === 'started' ? 'in_progress' :
+                  'in_progress',
+          bytesTransferred: progressEvent.bytesTransferred,
+          totalBytes: progressEvent.totalBytes,
+          error: progressEvent.error,
+          endTime: (progressEvent.type === 'completed' || progressEvent.type === 'failed' || progressEvent.type === 'cancelled')
+            ? Date.now()
+            : undefined,
+        });
+      } catch (error) {
+        console.error("Failed to parse progress event:", error);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error("Transfer progress WebSocket error:", error);
+    };
+
+    ws.onclose = () => {
+      console.log("Transfer progress WebSocket disconnected");
+    };
+
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
+  }, [updateTransferProgress]);
+
+  // Handle cancel transfer - send cancel message via WebSocket
+  const handleCancelTransfer = useCallback((transferId: string) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'cancel',
+        transferId,
+      }));
+    }
+    cancelTransferInQueue(transferId);
+  }, [cancelTransferInQueue]);
 
   const startKeepalive = useCallback(() => {
     if (!sshSessionId) return;
@@ -511,13 +575,15 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
   async function handleUploadFile(file: File) {
     if (!sshSessionId) return;
 
-    const progressToast = toast.loading(
-      t("fileManager.uploadingFile", {
-        name: file.name,
-        size: formatFileSize(file.size),
-      }),
-      { duration: Infinity },
-    );
+    // Add transfer to queue
+    const transferId = addTransfer({
+      fileName: file.name,
+      operation: 'upload',
+      totalBytes: file.size,
+      sshSessionId,
+      sourcePath: file.name,
+      targetPath: currentPath,
+    });
 
     try {
       await ensureSSHConnection();
@@ -570,16 +636,20 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
         fileContent,
         currentHost?.id,
         undefined,
+        transferId,
       );
-
-      toast.dismiss(progressToast);
 
       toast.success(
         t("fileManager.fileUploadedSuccessfully", { name: file.name }),
       );
       handleRefreshDirectory();
     } catch (error: any) {
-      toast.dismiss(progressToast);
+      // Mark transfer as failed
+      updateTransferProgress(transferId, {
+        status: 'failed',
+        error: error.message || 'Upload failed',
+        endTime: Date.now(),
+      });
 
       if (
         error.message?.includes("connection") ||
@@ -598,10 +668,20 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
   async function handleDownloadFile(file: FileItem) {
     if (!sshSessionId) return;
 
+    // Add transfer to queue
+    const transferId = addTransfer({
+      fileName: file.name,
+      operation: 'download',
+      totalBytes: file.size || 0,
+      sshSessionId,
+      sourcePath: file.path,
+      targetPath: 'local',
+    });
+
     try {
       await ensureSSHConnection();
 
-      const response = await downloadSSHFile(sshSessionId, file.path);
+      const response = await downloadSSHFile(sshSessionId, file.path, currentHost?.id, undefined, transferId);
 
       if (response?.content) {
         const byteCharacters = atob(response.content);
@@ -628,6 +708,13 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
         );
       }
     } catch (error: any) {
+      // Mark transfer as failed
+      updateTransferProgress(transferId, {
+        status: 'failed',
+        error: error.message || 'Download failed',
+        endTime: Date.now(),
+      });
+
       if (
         error.message?.includes("connection") ||
         error.message?.includes("established")
@@ -2215,14 +2302,19 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
           </>
         )}
       </div>
+
+      {/* Transfer Queue at bottom */}
+      <TransferQueue />
     </div>
   );
 }
 
 export function FileManager({ initialHost, onClose }: FileManagerProps) {
   return (
-    <WindowManager>
-      <FileManagerContent initialHost={initialHost} onClose={onClose} />
-    </WindowManager>
+    <TransferQueueProvider>
+      <WindowManager>
+        <FileManagerContent initialHost={initialHost} onClose={onClose} />
+      </WindowManager>
+    </TransferQueueProvider>
   );
 }

@@ -4,11 +4,51 @@ import { getDb } from "../db/index.js";
 import { sessionState } from "../db/schema.js";
 import { AuthManager } from "../../utils/auth-manager.js";
 import { apiLogger } from "../../utils/logger.js";
-import type { Request, Response } from "express";
+import type { Request, Response, NextFunction } from "express";
 
 const router = express.Router();
 const authManager = AuthManager.getInstance();
-const authenticateJWT = authManager.createAuthMiddleware();
+
+// Custom auth middleware that accepts JWT from query parameter (for sendBeacon compatibility)
+// This is ONLY used for session routes to support navigator.sendBeacon during page unload
+const authenticateJWT = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    let token = req.cookies?.jwt;
+
+    // Check Authorization header
+    if (!token) {
+      const authHeader = req.headers["authorization"];
+      if (authHeader?.startsWith("Bearer ")) {
+        token = authHeader.split(" ")[1];
+      }
+    }
+
+    // Check query parameter (only for sendBeacon support)
+    if (!token && req.query.token) {
+      token = req.query.token as string;
+    }
+
+    if (!token) {
+      return res.status(401).json({ error: "Missing authentication token" });
+    }
+
+    const payload = await authManager.verifyJWTToken(token);
+
+    if (!payload) {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+
+    (req as any).user = { userId: payload.userId };
+    (req as any).userId = payload.userId;
+    (req as any).pendingTOTP = payload.pendingTOTP;
+    next();
+  } catch (error) {
+    apiLogger.error("Session authentication failed", error, {
+      operation: "session_auth_failed",
+    });
+    return res.status(401).json({ error: "Authentication failed" });
+  }
+};
 
 // Route: Get session state for the current user
 // GET /session
