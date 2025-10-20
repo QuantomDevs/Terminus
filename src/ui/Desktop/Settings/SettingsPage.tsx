@@ -10,16 +10,18 @@ import { ColorSchemeSettings } from "@/ui/Desktop/Settings/ColorSchemeSettings.t
 
 interface SettingsPageProps {
   isTopbarOpen?: boolean;
+  username?: string | null;
+  isAdmin?: boolean;
 }
 
-export function SettingsPage({ isTopbarOpen }: SettingsPageProps) {
+export function SettingsPage({ isTopbarOpen, username, isAdmin }: SettingsPageProps) {
   const [activeCategory, setActiveCategory] =
     useState<SettingsCategory>("application");
 
   const renderSettingsContent = () => {
     switch (activeCategory) {
       case "application":
-        return <ApplicationSettings />;
+        return <ApplicationSettings username={username} isAdmin={isAdmin} />;
       case "appearance":
         return (
           <div className="space-y-6">
@@ -63,9 +65,10 @@ export function SettingsPage({ isTopbarOpen }: SettingsPageProps) {
 
   return (
     <div
-      className="flex h-screen w-full bg-[var(--color-dark-bg)]"
+      className="flex w-full bg-[var(--color-dark-bg)]"
       style={{
-        marginTop: isTopbarOpen ? "48px" : "0px",
+        marginTop: isTopbarOpen ? "38px" : "0px",
+        height: isTopbarOpen ? "calc(100vh - 38px)" : "100vh",
       }}
     >
       {/* Left Sidebar */}

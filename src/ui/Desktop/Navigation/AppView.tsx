@@ -542,24 +542,20 @@ export function AppView({
   const isFileManager = currentTabData?.type === "file_manager";
   const isSplitScreen = allSplitScreenTab.length > 0;
 
-  const topMarginPx = isTopbarOpen ? 74 : 26;
-  const leftMarginPx = 26;
-  const bottomMarginPx = 8;
+  const topMarginPx = isTopbarOpen ? 38 : 0;
 
   return (
     <div
       ref={containerRef}
-      className="border-2 border-dark-border rounded-lg overflow-hidden overflow-x-hidden relative"
+      className="overflow-hidden overflow-x-hidden relative"
       style={{
         background:
           isFileManager && !isSplitScreen
             ? "var(--color-dark-bg-darkest)"
             : "var(--color-dark-bg)",
-        marginLeft: leftMarginPx,
-        marginRight: 17,
         marginTop: topMarginPx,
-        marginBottom: bottomMarginPx,
-        height: `calc(100vh - ${topMarginPx + bottomMarginPx}px)`,
+        width: "100vw",
+        height: `calc(100vh - ${topMarginPx}px)`,
       }}
     >
       {renderTerminalsLayer()}

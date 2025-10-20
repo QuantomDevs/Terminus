@@ -196,7 +196,7 @@ function AppContent() {
 
           {showSettings && (
             <div className="h-screen w-full visible pointer-events-auto static overflow-hidden">
-              <SettingsPage isTopbarOpen={isTopbarOpen} />
+              <SettingsPage isTopbarOpen={isTopbarOpen} username={username} isAdmin={isAdmin} />
             </div>
           )}
 
@@ -214,8 +214,6 @@ function AppContent() {
           <TopNavbar
             isTopbarOpen={isTopbarOpen}
             setIsTopbarOpen={setIsTopbarOpen}
-            isAdmin={isAdmin}
-            username={username}
             onOpenQuickConnect={() => setIsQuickConnectOpen(true)}
           />
         </div>
