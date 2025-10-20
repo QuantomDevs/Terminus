@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { FileManagerGrid } from "./FileManagerGrid";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -12,6 +12,8 @@ import {
   uploadSSHFile,
   listLocalFiles,
   uploadLocalFile,
+  getSetting,
+  saveSetting,
 } from "@/ui/main-axios.ts";
 
 interface CreateIntent {
@@ -46,6 +48,7 @@ interface CommanderViewProps {
   sshSessionId: string | null;
   currentHost: any;
   viewMode?: "grid" | "list";
+  onViewModeChange?: (mode: "grid" | "list") => void;
   onContextMenu?: (event: React.MouseEvent, file?: FileItem) => void;
   onRename?: (file: FileItem, newName: string) => void;
   editingFile?: FileItem | null;
@@ -86,6 +89,7 @@ export function CommanderView({
   sshSessionId,
   currentHost,
   viewMode = "list",
+  onViewModeChange,
   onContextMenu,
   onRename,
   editingFile,
@@ -109,6 +113,76 @@ export function CommanderView({
 }: CommanderViewProps) {
   const { t } = useTranslation();
   const [activePanel, setActivePanel] = useState<"left" | "right">("left");
+
+  // Resizable panels state
+  const [leftWidth, setLeftWidth] = useState<number>(50); // Percentage
+  const [isResizing, setIsResizing] = useState<boolean>(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Load panel width from settings on mount
+  useEffect(() => {
+    const loadPanelWidth = async () => {
+      try {
+        const response = await getSetting("file_manager_commander_left_width");
+        if (response.value) {
+          const width = parseInt(response.value);
+          if (width >= 20 && width <= 80) {
+            setLeftWidth(width);
+          }
+        }
+      } catch (error) {
+        console.log("No saved panel width, using default 50%");
+      }
+    };
+    loadPanelWidth();
+  }, []);
+
+  // Save panel width when it changes (debounced)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      saveSetting("file_manager_commander_left_width", leftWidth.toString()).catch(
+        (error) => console.error("Failed to save panel width:", error)
+      );
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [leftWidth]);
+
+  // Handle mouse down on divider
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  // Handle mouse move while resizing
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing || !containerRef.current) return;
+
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const containerWidth = containerRect.width;
+      const mouseX = e.clientX - containerRect.left;
+      const newLeftWidth = (mouseX / containerWidth) * 100;
+
+      // Constrain between 20% and 80%
+      if (newLeftWidth >= 20 && newLeftWidth <= 80) {
+        setLeftWidth(newLeftWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizing]);
 
   // Selection management for both panels
   const leftSelection = useFileSelection();
@@ -255,14 +329,22 @@ export function CommanderView({
   );
 
   return (
-    <div className="flex h-full w-full gap-1">
+    <div
+      ref={containerRef}
+      className="flex h-full w-full"
+      style={{ cursor: isResizing ? "col-resize" : "default" }}
+    >
       {/* Left Panel */}
       <div
-        className={`flex-1 border-r ${
+        className={`border-r ${
           activePanel === "left"
-            ? "border-blue-500 border-r-2"
+            ? "border-r-2"
             : "border-dark-border"
         }`}
+        style={{
+          width: `${leftWidth}%`,
+          borderColor: activePanel === "left" ? "var(--accent-color)" : undefined,
+        }}
         onClick={() => setActivePanel("left")}
       >
         <div className="h-full relative">
@@ -278,6 +360,7 @@ export function CommanderView({
             onRefresh={onLeftRefresh}
             onContextMenu={onContextMenu}
             viewMode={viewMode}
+            onViewModeChange={onViewModeChange}
             onRename={onRename}
             editingFile={editingFile}
             onStartEdit={onStartEdit}
@@ -295,6 +378,9 @@ export function CommanderView({
             createIntent={leftCreateIntent}
             onConfirmCreate={onLeftConfirmCreate}
             onCancelCreate={onLeftCancelCreate}
+            isActive={activePanel === "left"}
+            currentHost={currentHost}
+            panelType={leftPanelType}
           />
           {/* Panel Type & Active Indicator */}
           <div className="absolute top-2 right-2 flex gap-2">
@@ -302,7 +388,10 @@ export function CommanderView({
               {leftPanelType === "local" ? "📁 Local" : "🌐 Remote"}
             </div>
             {activePanel === "left" && (
-              <div className="px-2 py-1 bg-blue-500 text-white text-xs rounded">
+              <div
+                className="px-2 py-1 text-white text-xs rounded"
+                style={{ backgroundColor: "var(--accent-color)" }}
+              >
                 {t("fileManager.activePanel")}
               </div>
             )}
@@ -310,13 +399,27 @@ export function CommanderView({
         </div>
       </div>
 
+      {/* Draggable Divider */}
+      <div
+        className="w-1 bg-dark-border hover:bg-accent-foreground cursor-col-resize flex-shrink-0 transition-colors"
+        style={{
+          backgroundColor: isResizing ? "var(--accent-color)" : undefined,
+        }}
+        onMouseDown={handleMouseDown}
+        title="Drag to resize panels"
+      />
+
       {/* Right Panel */}
       <div
-        className={`flex-1 border-l ${
+        className={`border-l ${
           activePanel === "right"
-            ? "border-blue-500 border-l-2"
+            ? "border-l-2"
             : "border-dark-border"
         }`}
+        style={{
+          width: `${100 - leftWidth}%`,
+          borderColor: activePanel === "right" ? "var(--accent-color)" : undefined,
+        }}
         onClick={() => setActivePanel("right")}
       >
         <div className="h-full relative">
@@ -332,6 +435,7 @@ export function CommanderView({
             onRefresh={onRightRefresh}
             onContextMenu={onContextMenu}
             viewMode={viewMode}
+            onViewModeChange={onViewModeChange}
             onRename={onRename}
             editingFile={editingFile}
             onStartEdit={onStartEdit}
@@ -349,6 +453,9 @@ export function CommanderView({
             createIntent={rightCreateIntent}
             onConfirmCreate={onRightConfirmCreate}
             onCancelCreate={onRightCancelCreate}
+            isActive={activePanel === "right"}
+            currentHost={currentHost}
+            panelType={rightPanelType}
           />
           {/* Panel Type & Active Indicator */}
           <div className="absolute top-2 right-2 flex gap-2">
@@ -356,7 +463,10 @@ export function CommanderView({
               {rightPanelType === "local" ? "📁 Local" : "🌐 Remote"}
             </div>
             {activePanel === "right" && (
-              <div className="px-2 py-1 bg-blue-500 text-white text-xs rounded">
+              <div
+                className="px-2 py-1 text-white text-xs rounded"
+                style={{ backgroundColor: "var(--accent-color)" }}
+              >
                 {t("fileManager.activePanel")}
               </div>
             )}

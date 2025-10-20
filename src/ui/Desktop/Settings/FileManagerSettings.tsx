@@ -6,6 +6,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.tsx";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { getSetting, saveSetting } from "@/ui/main-axios.ts";
 
 interface FileManagerSettingsProps {}
@@ -13,11 +15,21 @@ interface FileManagerSettingsProps {}
 export function FileManagerSettings({}: FileManagerSettingsProps) {
   const [fileManagerDesign, setFileManagerDesign] = useState<string>("explorer");
   const [editorType, setEditorType] = useState<string>("internal");
+  const [defaultLayout, setDefaultLayout] = useState<string>("grid");
+  const [localDefaultPath, setLocalDefaultPath] = useState<string>("");
+  const [showType, setShowType] = useState<boolean>(true);
+  const [showSize, setShowSize] = useState<boolean>(true);
+  const [showModified, setShowModified] = useState<boolean>(true);
+  const [showPermissions, setShowPermissions] = useState<boolean>(true);
+  const [showOwner, setShowOwner] = useState<boolean>(true);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
     loadFileManagerDesignSetting();
     loadEditorTypeSetting();
+    loadDefaultLayoutSetting();
+    loadLocalDefaultPathSetting();
+    loadColumnVisibilitySettings();
   }, []);
 
   const loadFileManagerDesignSetting = async () => {
@@ -64,6 +76,116 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
       console.error("Failed to save file editor type setting:", error);
       // Revert on error
       await loadEditorTypeSetting();
+    }
+  };
+
+  const loadDefaultLayoutSetting = async () => {
+    try {
+      const response = await getSetting("file_manager_default_layout");
+      setDefaultLayout(response.value || "grid");
+    } catch (error) {
+      console.error("Failed to load default layout setting:", error);
+      // Default to grid if setting doesn't exist
+      setDefaultLayout("grid");
+    }
+  };
+
+  const handleDefaultLayoutChange = async (value: string) => {
+    setDefaultLayout(value);
+    try {
+      await saveSetting("file_manager_default_layout", value);
+    } catch (error) {
+      console.error("Failed to save default layout setting:", error);
+      // Revert on error
+      await loadDefaultLayoutSetting();
+    }
+  };
+
+  const loadLocalDefaultPathSetting = async () => {
+    try {
+      const response = await getSetting("file_manager_local_default_path");
+      setLocalDefaultPath(response.value || "");
+    } catch (error) {
+      console.error("Failed to load local default path setting:", error);
+      // Default to empty string if setting doesn't exist
+      setLocalDefaultPath("");
+    }
+  };
+
+  const handleLocalDefaultPathChange = async (value: string) => {
+    setLocalDefaultPath(value);
+    try {
+      await saveSetting("file_manager_local_default_path", value);
+    } catch (error) {
+      console.error("Failed to save local default path setting:", error);
+      // Revert on error
+      await loadLocalDefaultPathSetting();
+    }
+  };
+
+  const loadColumnVisibilitySettings = async () => {
+    try {
+      const typeRes = await getSetting("file_manager_show_type");
+      setShowType(typeRes.value === "true" || typeRes.value === undefined);
+    } catch (error) {
+      setShowType(true);
+    }
+
+    try {
+      const sizeRes = await getSetting("file_manager_show_size");
+      setShowSize(sizeRes.value === "true" || sizeRes.value === undefined);
+    } catch (error) {
+      setShowSize(true);
+    }
+
+    try {
+      const modifiedRes = await getSetting("file_manager_show_modified");
+      setShowModified(modifiedRes.value === "true" || modifiedRes.value === undefined);
+    } catch (error) {
+      setShowModified(true);
+    }
+
+    try {
+      const permissionsRes = await getSetting("file_manager_show_permissions");
+      setShowPermissions(permissionsRes.value === "true" || permissionsRes.value === undefined);
+    } catch (error) {
+      setShowPermissions(true);
+    }
+
+    try {
+      const ownerRes = await getSetting("file_manager_show_owner");
+      setShowOwner(ownerRes.value === "true" || ownerRes.value === undefined);
+    } catch (error) {
+      setShowOwner(true);
+    }
+  };
+
+  const handleColumnVisibilityChange = async (column: string, value: boolean) => {
+    try {
+      await saveSetting(`file_manager_show_${column}`, value.toString());
+
+      // Update state based on column
+      switch (column) {
+        case "type":
+          setShowType(value);
+          break;
+        case "size":
+          setShowSize(value);
+          break;
+        case "modified":
+          setShowModified(value);
+          break;
+        case "permissions":
+          setShowPermissions(value);
+          break;
+        case "owner":
+          setShowOwner(value);
+          break;
+      }
+    } catch (error) {
+      console.error(`Failed to save ${column} visibility setting:`, error);
+      // Reload on error
+      await loadColumnVisibilitySettings();
     }
   };
 
@@ -160,6 +282,153 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
                 ? "Internal: Edit files directly in Terminus using the built-in Monaco code editor (VS Code's editor)"
                 : "External: Download files and open them in your preferred external text editor (feature coming soon)"}
             </p>
+          </div>
+        </div>
+
+        {/* Default Layout Setting */}
+        <div className="p-4 rounded-lg bg-[var(--color-sidebar-bg)] border border-[var(--color-dark-border)]">
+          <div className="space-y-3">
+            <div className="space-y-0.5">
+              <label className="text-sm font-medium text-white">
+                Default View Layout
+              </label>
+              <p className="text-xs text-gray-400">
+                Choose the default layout when opening file manager
+              </p>
+            </div>
+            <Select
+              value={defaultLayout}
+              onValueChange={handleDefaultLayoutChange}
+              disabled={isLoading}
+            >
+              <SelectTrigger className="w-full max-w-xs bg-[var(--color-dark-bg)] border-[var(--color-dark-border)] text-gray-300">
+                <SelectValue placeholder="Select layout" />
+              </SelectTrigger>
+              <SelectContent className="bg-[var(--color-dark-bg)] border-[var(--color-dark-border)]">
+                <SelectItem
+                  value="grid"
+                  className="text-gray-300 hover:bg-[var(--color-sidebar-accent)] hover:text-white focus:bg-[var(--color-sidebar-accent)] focus:text-white"
+                >
+                  Grid View
+                </SelectItem>
+                <SelectItem
+                  value="list"
+                  className="text-gray-300 hover:bg-[var(--color-sidebar-accent)] hover:text-white focus:bg-[var(--color-sidebar-accent)] focus:text-white"
+                >
+                  List View
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500 italic">
+              {defaultLayout === "grid"
+                ? "Grid: Display files and folders in a grid with large icons"
+                : "List: Display files and folders in a detailed list with file information"}
+            </p>
+          </div>
+        </div>
+
+        {/* Local Default Path Setting */}
+        <div className="p-4 rounded-lg bg-[var(--color-sidebar-bg)] border border-[var(--color-dark-border)]">
+          <div className="space-y-3">
+            <div className="space-y-0.5">
+              <label className="text-sm font-medium text-white">
+                Local File Path
+              </label>
+              <p className="text-xs text-gray-400">
+                Default folder path for local file manager panels (e.g., /home/user/Documents)
+              </p>
+            </div>
+            <Input
+              type="text"
+              value={localDefaultPath}
+              onChange={(e) => handleLocalDefaultPathChange(e.target.value)}
+              placeholder="/home/user or leave empty for home directory"
+              disabled={isLoading}
+              className="w-full max-w-md bg-[var(--color-dark-bg)] border-[var(--color-dark-border)] text-gray-300 placeholder:text-gray-500"
+            />
+            <p className="text-xs text-gray-500 italic">
+              Leave empty to use your system's home directory. This path will be used when opening local file manager panels.
+            </p>
+          </div>
+        </div>
+
+        {/* List View Column Visibility Settings */}
+        <div className="p-4 rounded-lg bg-[var(--color-sidebar-bg)] border border-[var(--color-dark-border)]">
+          <div className="space-y-3">
+            <div className="space-y-0.5">
+              <label className="text-sm font-medium text-white">
+                List View Columns
+              </label>
+              <p className="text-xs text-gray-400">
+                Choose which columns to display in list view
+              </p>
+            </div>
+            <div className="space-y-3">
+              {/* Show Type Column */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <label className="text-sm text-white">Show Type</label>
+                  <p className="text-xs text-gray-500">Display file type/extension column</p>
+                </div>
+                <Switch
+                  checked={showType}
+                  onCheckedChange={(value) => handleColumnVisibilityChange("type", value)}
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* Show Size Column */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <label className="text-sm text-white">Show Size</label>
+                  <p className="text-xs text-gray-500">Display file size column</p>
+                </div>
+                <Switch
+                  checked={showSize}
+                  onCheckedChange={(value) => handleColumnVisibilityChange("size", value)}
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* Show Modified Date Column */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <label className="text-sm text-white">Show Modified Date</label>
+                  <p className="text-xs text-gray-500">Display last modification date column</p>
+                </div>
+                <Switch
+                  checked={showModified}
+                  onCheckedChange={(value) => handleColumnVisibilityChange("modified", value)}
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* Show Permissions Column */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <label className="text-sm text-white">Show Permissions</label>
+                  <p className="text-xs text-gray-500">Display file permissions column</p>
+                </div>
+                <Switch
+                  checked={showPermissions}
+                  onCheckedChange={(value) => handleColumnVisibilityChange("permissions", value)}
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* Show Owner Column */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <label className="text-sm text-white">Show Owner</label>
+                  <p className="text-xs text-gray-500">Display file owner column</p>
+                </div>
+                <Switch
+                  checked={showOwner}
+                  onCheckedChange={(value) => handleColumnVisibilityChange("owner", value)}
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>

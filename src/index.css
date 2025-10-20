@@ -107,6 +107,11 @@
   --color-dark-bg-panel: #1b1b1e;
   --color-dark-border-panel: #222224;
   --color-dark-bg-panel-hover: #232327;
+
+  --accent-color: #3b82f6;
+  --accent-color-hover: #2563eb;
+  --accent-color-light: #60a5fa;
+  --accent-color-dark: #1d4ed8;
 }
 
 .dark {

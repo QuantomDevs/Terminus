@@ -21,9 +21,12 @@ import {
   Move,
   GitCompare,
   Edit,
+  Grid3X3,
+  List,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { FileItem } from "../../../types/index.js";
+import { getSetting } from "@/ui/main-axios.ts";
 
 interface CreateIntent {
   id: string;
@@ -75,6 +78,7 @@ interface FileManagerGridProps {
   onDownload?: (files: FileItem[]) => void;
   onContextMenu?: (event: React.MouseEvent, file?: FileItem) => void;
   viewMode?: "grid" | "list";
+  onViewModeChange?: (mode: "grid" | "list") => void;
   onRename?: (file: FileItem, newName: string) => void;
   editingFile?: FileItem | null;
   onStartEdit?: (file: FileItem) => void;
@@ -92,6 +96,9 @@ interface FileManagerGridProps {
   createIntent?: CreateIntent | null;
   onConfirmCreate?: (name: string) => void;
   onCancelCreate?: () => void;
+  isActive?: boolean; // For Commander view - indicates if this panel is active
+  currentHost?: any; // SSH host information for remote panels
+  panelType?: "local" | "remote"; // Panel type for displaying appropriate info
 }
 
 const getFileIcon = (file: FileItem, viewMode: "grid" | "list" = "grid") => {
@@ -177,6 +184,7 @@ export function FileManagerGrid({
   onDownload,
   onContextMenu,
   viewMode = "grid",
+  onViewModeChange,
   onRename,
   editingFile,
   onStartEdit,
@@ -194,16 +202,58 @@ export function FileManagerGrid({
   createIntent,
   onConfirmCreate,
   onCancelCreate,
+  isActive = true, // Default to true for non-commander views
+  currentHost,
+  panelType = "remote", // Default to remote for backward compatibility
 }: FileManagerGridProps) {
   const { t } = useTranslation();
   const gridRef = useRef<HTMLDivElement>(null);
   const [editingName, setEditingName] = useState("");
+
+  // Column visibility settings
+  const [showType, setShowType] = useState(true);
+  const [showSize, setShowSize] = useState(true);
+  const [showModified, setShowModified] = useState(true);
+  const [showPermissions, setShowPermissions] = useState(true);
+  const [showOwner, setShowOwner] = useState(true);
 
   const [dragState, setDragState] = useState<DragState>({
     type: "none",
     files: [],
     counter: 0,
   });
+
+  // Load column visibility settings
+  useEffect(() => {
+    const loadColumnSettings = async () => {
+      try {
+        const typeRes = await getSetting("file_manager_show_type");
+        setShowType(typeRes.value === "true" || typeRes.value === undefined);
+      } catch { setShowType(true); }
+
+      try {
+        const sizeRes = await getSetting("file_manager_show_size");
+        setShowSize(sizeRes.value === "true" || sizeRes.value === undefined);
+      } catch { setShowSize(true); }
+
+      try {
+        const modifiedRes = await getSetting("file_manager_show_modified");
+        setShowModified(modifiedRes.value === "true" || modifiedRes.value === undefined);
+      } catch { setShowModified(true); }
+
+      try {
+        const permissionsRes = await getSetting("file_manager_show_permissions");
+        setShowPermissions(permissionsRes.value === "true" || permissionsRes.value === undefined);
+      } catch { setShowPermissions(true); }
+
+      try {
+        const ownerRes = await getSetting("file_manager_show_owner");
+        setShowOwner(ownerRes.value === "true" || ownerRes.value === undefined);
+      } catch { setShowOwner(true); }
+    };
+
+    loadColumnSettings();
+  }, []);
 
   useEffect(() => {
     const handleGlobalMouseMove = (e: MouseEvent) => {
@@ -836,48 +886,113 @@ export function FileManagerGrid({
   return (
     <div className="h-full flex flex-col bg-dark-bg overflow-hidden">
       <div className="flex-shrink-0 border-b border-dark-border">
+        {/* Remote Connection Info */}
+        {panelType === "remote" && currentHost && (
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-dark-border bg-dark-bg/50">
+            <span className="text-sm font-medium text-white">{currentHost.name}</span>
+            <span className="text-xs text-muted-foreground">
+              {currentHost.ip}:{currentHost.port}
+            </span>
+          </div>
+        )}
+
         <div className="flex items-center gap-1 p-2 border-b border-dark-border">
           <button
             onClick={goBack}
-            disabled={historyIndex <= 0}
+            disabled={historyIndex <= 0 || !isActive}
             className={cn(
               "p-1 rounded hover:bg-dark-hover",
-              historyIndex <= 0 && "opacity-50 cursor-not-allowed",
+              (!isActive || historyIndex <= 0) && "opacity-50 cursor-not-allowed",
             )}
+            style={isActive ? { color: "var(--accent-color)" } : {}}
             title={t("common.back")}
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           <button
             onClick={goForward}
-            disabled={historyIndex >= navigationHistory.length - 1}
+            disabled={historyIndex >= navigationHistory.length - 1 || !isActive}
             className={cn(
               "p-1 rounded hover:bg-dark-hover",
-              historyIndex >= navigationHistory.length - 1 &&
+              (!isActive || historyIndex >= navigationHistory.length - 1) &&
                 "opacity-50 cursor-not-allowed",
             )}
+            style={isActive ? { color: "var(--accent-color)" } : {}}
             title={t("common.forward")}
           >
             <ChevronRight className="w-4 h-4" />
           </button>
           <button
             onClick={goUp}
-            disabled={currentPath === "/"}
+            disabled={currentPath === "/" || !isActive}
             className={cn(
               "p-1 rounded hover:bg-dark-hover",
-              currentPath === "/" && "opacity-50 cursor-not-allowed",
+              (!isActive || currentPath === "/") && "opacity-50 cursor-not-allowed",
             )}
+            style={isActive ? { color: "var(--accent-color)" } : {}}
             title={t("fileManager.parentDirectory")}
           >
             <ArrowUp className="w-4 h-4" />
           </button>
           <button
             onClick={onRefresh}
-            className="p-1 rounded hover:bg-dark-hover"
+            disabled={!isActive}
+            className={cn(
+              "p-1 rounded hover:bg-dark-hover",
+              !isActive && "opacity-50 cursor-not-allowed",
+            )}
+            style={isActive ? { color: "var(--accent-color)" } : {}}
             title={t("common.refresh")}
           >
             <RefreshCw className="w-4 h-4" />
           </button>
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Layout Toggle */}
+          {onViewModeChange && (
+            <div className="flex border border-dark-border rounded-md overflow-hidden">
+              <button
+                onClick={() => onViewModeChange("grid")}
+                disabled={!isActive}
+                className={cn(
+                  "p-1",
+                  viewMode === "grid" && isActive
+                    ? "bg-dark-hover"
+                    : "hover:bg-dark-hover/50",
+                  !isActive && "opacity-50 cursor-not-allowed",
+                )}
+                style={
+                  isActive && viewMode === "grid"
+                    ? { color: "var(--accent-color)" }
+                    : {}
+                }
+                title={t("fileManager.gridView")}
+              >
+                <Grid3X3 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => onViewModeChange("list")}
+                disabled={!isActive}
+                className={cn(
+                  "p-1",
+                  viewMode === "list" && isActive
+                    ? "bg-dark-hover"
+                    : "hover:bg-dark-hover/50",
+                  !isActive && "opacity-50 cursor-not-allowed",
+                )}
+                style={
+                  isActive && viewMode === "list"
+                    ? { color: "var(--accent-color)" }
+                    : {}
+                }
+                title={t("fileManager.listView")}
+              >
+                <List className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center px-3 py-2 text-sm">
@@ -1088,7 +1203,31 @@ export function FileManagerGrid({
             </div>
           ) : (
             /* List view */
-            <div className="space-y-1">
+            <div className="space-y-0">
+              {/* Parent folder navigation button */}
+              {currentPath !== "/" && (
+                <div
+                  className="flex items-center gap-3 p-2 cursor-pointer bg-primary/5 hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => {
+                    const parentPath = currentPath.substring(0, currentPath.lastIndexOf("/")) || "/";
+                    onPathChange(parentPath);
+                  }}
+                  title="Go to parent directory"
+                >
+                  <div className="flex-shrink-0">
+                    <Folder className="w-6 h-6 text-muted-foreground" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground font-medium">. .</p>
+                  </div>
+                  <div className="flex-shrink-0 text-right">
+                    <p className="text-xs text-muted-foreground">Parent folder</p>
+                  </div>
+                  <div className="flex-shrink-0 text-right w-20">
+                    <p className="text-xs text-muted-foreground font-mono"></p>
+                  </div>
+                </div>
+              )}
               {createIntent && (
                 <CreateIntentListItem
                   intent={createIntent}
@@ -1096,7 +1235,7 @@ export function FileManagerGrid({
                   onCancel={onCancelCreate}
                 />
               )}
-              {files.map((file) => {
+              {files.map((file, index) => {
                 const isSelected = selectedFiles.some(
                   (f) => f.path === file.path,
                 );
@@ -1107,7 +1246,9 @@ export function FileManagerGrid({
                     data-file-path={file.path}
                     draggable={true}
                     className={cn(
-                      "flex items-center gap-3 p-2 rounded cursor-pointer",
+                      "flex items-center gap-3 p-2 cursor-pointer",
+                      // Alternating row colors using primary/secondary
+                      index % 2 === 0 ? "bg-primary/5" : "bg-secondary/5",
                       "hover:bg-accent hover:text-accent-foreground",
                       isSelected && "bg-primary/20",
                       dragState.target?.path === file.path &&
@@ -1131,7 +1272,8 @@ export function FileManagerGrid({
                       {getFileIcon(file, viewMode)}
                     </div>
 
-                    <div className="flex-1 min-w-0">
+                    {/* Name column */}
+                    <div className="flex-1 min-w-0 flex items-center gap-2">
                       {editingFile?.path === file.path ? (
                         <input
                           ref={editInputRef}
@@ -1148,45 +1290,82 @@ export function FileManagerGrid({
                           onClick={(e) => e.stopPropagation()}
                         />
                       ) : (
-                        <p
-                          className="text-sm text-foreground break-words px-1 py-0.5 rounded leading-tight"
-                          title={file.name}
-                        >
-                          {file.name}
-                        </p>
-                      )}
-                      {file.type === "link" && file.linkTarget && (
-                        <p
-                          className="text-xs text-primary break-words leading-tight"
-                          title={file.linkTarget}
-                        >
-                          → {file.linkTarget}
-                        </p>
-                      )}
-                      {file.modified && (
-                        <p className="text-xs text-muted-foreground">
-                          {file.modified}
-                        </p>
+                        <div className="flex-1 min-w-0">
+                          <p
+                            className="text-sm text-foreground truncate"
+                            title={file.name}
+                          >
+                            {file.name}
+                          </p>
+                          {file.type === "link" && file.linkTarget && (
+                            <p
+                              className="text-xs text-primary truncate"
+                              title={file.linkTarget}
+                            >
+                              → {file.linkTarget}
+                            </p>
+                          )}
+                        </div>
                       )}
                     </div>
 
-                    <div className="flex-shrink-0 text-right">
-                      {file.type === "file" &&
-                        file.size !== undefined &&
-                        file.size !== null && (
+                    {/* Type column */}
+                    {showType && (
+                      <div className="flex-shrink-0 w-20 text-right">
+                        <p className="text-xs text-muted-foreground capitalize">
+                          {file.type === "directory" ? "Folder" : file.type === "link" ? "Link" : file.name.includes(".") ? file.name.split(".").pop()?.toUpperCase() : "File"}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Size column */}
+                    {showSize && (
+                      <div className="flex-shrink-0 w-24 text-right">
+                        {file.type === "file" &&
+                          file.size !== undefined &&
+                          file.size !== null && (
+                            <p className="text-xs text-muted-foreground">
+                              {formatFileSize(file.size)}
+                            </p>
+                          )}
+                        {file.type === "directory" && (
+                          <p className="text-xs text-muted-foreground">-</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Modified date column */}
+                    {showModified && (
+                      <div className="flex-shrink-0 w-32 text-right">
+                        {file.modified && (
                           <p className="text-xs text-muted-foreground">
-                            {formatFileSize(file.size)}
+                            {file.modified}
                           </p>
                         )}
-                    </div>
+                      </div>
+                    )}
 
-                    <div className="flex-shrink-0 text-right w-20">
-                      {file.permissions && (
-                        <p className="text-xs text-muted-foreground font-mono">
-                          {file.permissions}
-                        </p>
-                      )}
-                    </div>
+                    {/* Permissions column */}
+                    {showPermissions && (
+                      <div className="flex-shrink-0 w-24 text-right">
+                        {file.permissions && (
+                          <p className="text-xs text-muted-foreground font-mono">
+                            {file.permissions}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Owner column */}
+                    {showOwner && (
+                      <div className="flex-shrink-0 w-20 text-right">
+                        {file.owner && (
+                          <p className="text-xs text-muted-foreground truncate" title={file.owner}>
+                            {file.owner}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}

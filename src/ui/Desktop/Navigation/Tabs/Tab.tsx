@@ -136,7 +136,7 @@ export function Tab({
   };
 
   const widthClass = tabWidth === "fixed" ? "w-[200px]" : "min-w-fit max-w-[300px]";
-  const bgClass = isActive ? "bg-[var(--color-dark-bg-darkest)]" : "bg-[var(--color-dark-bg)]";
+  const bgClass = isActive ? "bg-[var(--color-dark-bg)]" : "bg-[var(--color-dark-bg-darkest)]";
 
   return (
     <div

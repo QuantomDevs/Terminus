@@ -56,6 +56,11 @@ const COLOR_VARIABLES = [
   { name: "--color-dark-hover", label: "Hover Background", category: "Custom Borders" },
   { name: "--color-dark-active", label: "Active State", category: "Custom Borders" },
   { name: "--color-dark-pressed", label: "Pressed State", category: "Custom Borders" },
+
+  { name: "--accent-color", label: "Accent Color", category: "Accent" },
+  { name: "--accent-color-hover", label: "Accent Hover", category: "Accent" },
+  { name: "--accent-color-light", label: "Accent Light", category: "Accent" },
+  { name: "--accent-color-dark", label: "Accent Dark", category: "Accent" },
 ];
 
 export const ColorSchemeSettings = () => {

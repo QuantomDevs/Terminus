@@ -8,6 +8,7 @@ import { useDragAndDrop } from "./hooks/useDragAndDrop";
 import { WindowManager, useWindowManager } from "./components/WindowManager";
 import { FileWindow } from "./components/FileWindow";
 import { DiffWindow } from "./components/DiffWindow";
+import { FilePropertiesModal } from "./components/FilePropertiesModal";
 import { useDragToDesktop } from "../../../hooks/useDragToDesktop";
 import { useDragToSystemDesktop } from "../../../hooks/useDragToSystemDesktop";
 import { useConfirmation } from "@/hooks/use-confirmation.ts";
@@ -143,6 +144,9 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
     isVisible: false,
     files: [],
   });
+
+  const [propertiesFile, setPropertiesFile] = useState<FileItem | null>(null);
+  const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
 
   const [clipboard, setClipboard] = useState<{
     files: FileItem[];
@@ -287,6 +291,22 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
     },
     [isClosing, onClose],
   );
+
+  // Load default layout setting on mount
+  useEffect(() => {
+    const loadDefaultLayout = async () => {
+      try {
+        const response = await getSetting("file_manager_default_layout");
+        if (response.value === "grid" || response.value === "list") {
+          setViewMode(response.value as "grid" | "list");
+        }
+      } catch (error) {
+        // Ignore error, keep default "grid"
+        console.log("No default layout setting found, using grid");
+      }
+    };
+    loadDefaultLayout();
+  }, []);
 
   useEffect(() => {
     if (currentHost) {
@@ -1318,6 +1338,16 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
     setEditingFile(file);
   }
 
+  function handleShowProperties(file: FileItem) {
+    setPropertiesFile(file);
+    setIsPropertiesOpen(true);
+  }
+
+  function handleCloseProperties() {
+    setIsPropertiesOpen(false);
+    setPropertiesFile(null);
+  }
+
   async function ensureSSHConnection() {
     if (!sshSessionId || !currentHost || isReconnecting) return;
 
@@ -2061,95 +2091,79 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
 
   return (
     <div className="h-full flex flex-col bg-dark-bg">
-      <div className="flex-shrink-0 border-b border-dark-border">
-        <div className="flex items-center justify-between p-3">
-          <div className="flex items-center gap-2">
-            <h2 className="font-semibold text-white">{currentHost.name}</h2>
-            <span className="text-sm text-muted-foreground">
-              {currentHost.ip}:{currentHost.port}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder={t("fileManager.searchFiles")}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 w-48 h-9 bg-dark-bg-button border-dark-border"
-              />
+      {/* Only show global header for Explorer view */}
+      {fileManagerDesign === "explorer" && (
+        <div className="flex-shrink-0 border-b border-dark-border">
+          <div className="flex items-center justify-between p-3">
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold text-white">{currentHost.name}</h2>
+              <span className="text-sm text-muted-foreground">
+                {currentHost.ip}:{currentHost.port}
+              </span>
             </div>
 
-            <div className="flex border border-dark-border rounded-md">
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={t("fileManager.searchFiles")}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8 w-48 h-9 bg-dark-bg-button border-dark-border"
+                />
+              </div>
+
               <Button
-                variant={viewMode === "grid" ? "default" : "ghost"}
+                variant="outline"
                 size="sm"
-                onClick={() => setViewMode("grid")}
-                className="rounded-r-none h-9"
+                onClick={() => {
+                  const input = document.createElement("input");
+                  input.type = "file";
+                  input.multiple = true;
+                  input.onchange = (e) => {
+                    const files = (e.target as HTMLInputElement).files;
+                    if (files) handleFilesDropped(files);
+                  };
+                  input.click();
+                }}
+                className="h-9"
               >
-                <Grid3X3 className="w-4 h-4" />
+                <Upload className="w-4 h-4 mr-2" />
+                {t("fileManager.upload")}
               </Button>
+
               <Button
-                variant={viewMode === "list" ? "default" : "ghost"}
+                variant="outline"
                 size="sm"
-                onClick={() => setViewMode("list")}
-                className="rounded-l-none h-9"
+                onClick={handleCreateNewFolder}
+                className="h-9"
               >
-                <List className="w-4 h-4" />
+                <FolderPlus className="w-4 h-4 mr-2" />
+                {t("fileManager.newFolder")}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCreateNewFile}
+                className="h-9"
+              >
+                <FilePlus className="w-4 h-4 mr-2" />
+                {t("fileManager.newFile")}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefreshDirectory}
+                className="h-9"
+              >
+                <RefreshCw className="w-4 h-4" />
               </Button>
             </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const input = document.createElement("input");
-                input.type = "file";
-                input.multiple = true;
-                input.onchange = (e) => {
-                  const files = (e.target as HTMLInputElement).files;
-                  if (files) handleFilesDropped(files);
-                };
-                input.click();
-              }}
-              className="h-9"
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              {t("fileManager.upload")}
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCreateNewFolder}
-              className="h-9"
-            >
-              <FolderPlus className="w-4 h-4 mr-2" />
-              {t("fileManager.newFolder")}
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCreateNewFile}
-              className="h-9"
-            >
-              <FilePlus className="w-4 h-4 mr-2" />
-              {t("fileManager.newFile")}
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefreshDirectory}
-              className="h-9"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </Button>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="flex-1 flex" {...dragHandlers}>
         {fileManagerDesign === "commander" ? (
@@ -2179,6 +2193,7 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
             sshSessionId={sshSessionId}
             currentHost={currentHost}
             viewMode={viewMode}
+            onViewModeChange={setViewMode}
             onContextMenu={handleContextMenu}
             onRename={(file, newName) => {
               if (leftPanelType === "local") {
@@ -2242,6 +2257,7 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
                 onDownload={(files) => files.forEach(handleDownloadFile)}
                 onContextMenu={handleContextMenu}
                 viewMode={viewMode}
+                onViewModeChange={setViewMode}
                 onRename={handleRenameConfirm}
                 editingFile={editingFile}
                 onStartEdit={handleStartEdit}
@@ -2259,49 +2275,61 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
                 createIntent={createIntent}
                 onConfirmCreate={handleConfirmCreate}
                 onCancelCreate={handleCancelCreate}
+                currentHost={currentHost}
+                panelType="remote"
               />
 
-              <FileManagerContextMenu
-                x={contextMenu.x}
-                y={contextMenu.y}
-                files={contextMenu.files}
-                isVisible={contextMenu.isVisible}
-                onClose={() =>
-                  setContextMenu((prev) => ({ ...prev, isVisible: false }))
-                }
-                onDownload={(files) => files.forEach(handleDownloadFile)}
-                onRename={handleRenameFile}
-                onCopy={handleCopyFiles}
-                onCut={handleCutFiles}
-                onPaste={handlePasteFiles}
-                onDelete={handleDeleteFiles}
-                onUpload={() => {
-                  const input = document.createElement("input");
-                  input.type = "file";
-                  input.multiple = true;
-                  input.onchange = (e) => {
-                    const files = (e.target as HTMLInputElement).files;
-                    if (files) handleFilesDropped(files);
-                  };
-                  input.click();
-                }}
-                onNewFolder={handleCreateNewFolder}
-                onNewFile={handleCreateNewFile}
-                onRefresh={handleRefreshDirectory}
-                hasClipboard={!!clipboard}
-                onDragToDesktop={() => handleDragToDesktop(contextMenu.files)}
-                onOpenTerminal={(path) => handleOpenTerminal(path)}
-                onRunExecutable={(file) => handleRunExecutable(file)}
-                onPinFile={handlePinFile}
-                onUnpinFile={handleUnpinFile}
-                onAddShortcut={handleAddShortcut}
-                isPinned={isPinnedFile}
-                currentPath={currentPath}
-              />
             </div>
           </>
         )}
       </div>
+
+      {/* Context Menu - Works for both Explorer and Commander views */}
+      <FileManagerContextMenu
+        x={contextMenu.x}
+        y={contextMenu.y}
+        files={contextMenu.files}
+        isVisible={contextMenu.isVisible}
+        onClose={() =>
+          setContextMenu((prev) => ({ ...prev, isVisible: false }))
+        }
+        onDownload={(files) => files.forEach(handleDownloadFile)}
+        onRename={handleRenameFile}
+        onCopy={handleCopyFiles}
+        onCut={handleCutFiles}
+        onPaste={handlePasteFiles}
+        onDelete={handleDeleteFiles}
+        onProperties={handleShowProperties}
+        onUpload={() => {
+          const input = document.createElement("input");
+          input.type = "file";
+          input.multiple = true;
+          input.onchange = (e) => {
+            const files = (e.target as HTMLInputElement).files;
+            if (files) handleFilesDropped(files);
+          };
+          input.click();
+        }}
+        onNewFolder={handleCreateNewFolder}
+        onNewFile={handleCreateNewFile}
+        onRefresh={handleRefreshDirectory}
+        hasClipboard={!!clipboard}
+        onDragToDesktop={() => handleDragToDesktop(contextMenu.files)}
+        onOpenTerminal={(path) => handleOpenTerminal(path)}
+        onRunExecutable={(file) => handleRunExecutable(file)}
+        onPinFile={handlePinFile}
+        onUnpinFile={handleUnpinFile}
+        onAddShortcut={handleAddShortcut}
+        isPinned={isPinnedFile}
+        currentPath={currentPath}
+      />
+
+      {/* Properties Modal */}
+      <FilePropertiesModal
+        file={propertiesFile}
+        isOpen={isPropertiesOpen}
+        onClose={handleCloseProperties}
+      />
 
       {/* Transfer Queue at bottom */}
       <TransferQueue />
