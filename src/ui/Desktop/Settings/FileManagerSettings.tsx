@@ -8,13 +8,17 @@ import {
 } from "@/components/ui/select.tsx";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { getSetting, saveSetting } from "@/ui/main-axios.ts";
+import { getSetting, saveSetting, validateEditorPath } from "@/ui/main-axios.ts";
+import { toast } from "sonner";
+import { Check, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface FileManagerSettingsProps {}
 
 export function FileManagerSettings({}: FileManagerSettingsProps) {
   const [fileManagerDesign, setFileManagerDesign] = useState<string>("explorer");
   const [editorType, setEditorType] = useState<string>("internal");
+  const [editorPath, setEditorPath] = useState<string>("");
   const [defaultLayout, setDefaultLayout] = useState<string>("grid");
   const [localDefaultPath, setLocalDefaultPath] = useState<string>("");
   const [showType, setShowType] = useState<boolean>(true);
@@ -23,10 +27,12 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
   const [showPermissions, setShowPermissions] = useState<boolean>(true);
   const [showOwner, setShowOwner] = useState<boolean>(true);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isValidatingEditor, setIsValidatingEditor] = useState<boolean>(false);
 
   useEffect(() => {
     loadFileManagerDesignSetting();
     loadEditorTypeSetting();
+    loadEditorPathSetting();
     loadDefaultLayoutSetting();
     loadLocalDefaultPathSetting();
     loadColumnVisibilitySettings();
@@ -76,6 +82,28 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
       console.error("Failed to save file editor type setting:", error);
       // Revert on error
       await loadEditorTypeSetting();
+    }
+  };
+
+  const loadEditorPathSetting = async () => {
+    try {
+      const response = await getSetting("file_editor_path");
+      setEditorPath(response.value || "");
+    } catch (error) {
+      console.error("Failed to load file editor path setting:", error);
+      // Default to empty string if setting doesn't exist
+      setEditorPath("");
+    }
+  };
+
+  const handleEditorPathChange = async (value: string) => {
+    setEditorPath(value);
+    try {
+      await saveSetting("file_editor_path", value);
+    } catch (error) {
+      console.error("Failed to save file editor path setting:", error);
+      // Revert on error
+      await loadEditorPathSetting();
     }
   };
 
@@ -189,6 +217,29 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
     }
   };
 
+  const handleValidateEditorPath = async () => {
+    if (!editorPath) {
+      toast.error("Please enter an editor path first");
+      return;
+    }
+
+    setIsValidatingEditor(true);
+    try {
+      const result = await validateEditorPath(editorPath);
+
+      if (result.isValid) {
+        toast.success("Editor path is valid and accessible");
+      } else {
+        toast.error("Editor path not found or not executable");
+      }
+    } catch (error: any) {
+      console.error("Failed to validate editor path:", error);
+      toast.error(error.message || "Failed to validate editor path");
+    } finally {
+      setIsValidatingEditor(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Header Section */}
@@ -280,8 +331,52 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
             <p className="text-xs text-gray-500 italic">
               {editorType === "internal"
                 ? "Internal: Edit files directly in Terminus using the built-in Monaco code editor (VS Code's editor)"
-                : "External: Download files and open them in your preferred external text editor (feature coming soon)"}
+                : "External: Download files and open them in your preferred external text editor"}
             </p>
+
+            {/* External Editor Path Input - Only shown when external editor is selected */}
+            {editorType === "external" && (
+              <div className="space-y-2 mt-3 pt-3 border-t border-[var(--color-dark-border)]">
+                <div className="space-y-0.5">
+                  <label className="text-sm font-medium text-white">
+                    External Editor Path
+                  </label>
+                  <p className="text-xs text-gray-400">
+                    Path to your preferred text editor executable
+                  </p>
+                </div>
+                <div className="flex gap-2 items-center">
+                  <Input
+                    type="text"
+                    value={editorPath}
+                    onChange={(e) => handleEditorPathChange(e.target.value)}
+                    placeholder="e.g., code, subl, notepad++, /usr/local/bin/code"
+                    disabled={isLoading}
+                    className="w-full max-w-md bg-[var(--color-dark-bg)] border-[var(--color-dark-border)] text-gray-300 placeholder:text-gray-500"
+                  />
+                  <Button
+                    onClick={handleValidateEditorPath}
+                    disabled={isLoading || isValidatingEditor || !editorPath}
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 bg-[var(--color-dark-bg)] border-[var(--color-dark-border)] text-gray-300 hover:bg-[var(--color-sidebar-accent)] hover:text-white"
+                  >
+                    {isValidatingEditor ? "Checking..." : "Validate"}
+                  </Button>
+                </div>
+                <div className="space-y-1 text-xs text-gray-500">
+                  <p className="font-medium">Common editors:</p>
+                  <ul className="list-disc list-inside space-y-0.5 ml-2">
+                    <li>VS Code: <code className="bg-[var(--color-dark-bg)] px-1 py-0.5 rounded">code</code> (if in PATH) or full path</li>
+                    <li>Sublime Text: <code className="bg-[var(--color-dark-bg)] px-1 py-0.5 rounded">subl</code> or full path</li>
+                    <li>Notepad++: Full path to notepad++.exe (Windows)</li>
+                    <li>Vim: <code className="bg-[var(--color-dark-bg)] px-1 py-0.5 rounded">vim</code> or <code className="bg-[var(--color-dark-bg)] px-1 py-0.5 rounded">nvim</code></li>
+                    <li>Emacs: <code className="bg-[var(--color-dark-bg)] px-1 py-0.5 rounded">emacs</code></li>
+                  </ul>
+                  <p className="mt-2 italic">Leave empty to use your system's default editor</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

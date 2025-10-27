@@ -15,6 +15,7 @@ import { useConfirmation } from "@/hooks/use-confirmation.ts";
 import { useTabs } from "@/ui/Desktop/Navigation/Tabs/TabContext";
 import { useTransferQueue, TransferQueueProvider } from "@/hooks/useTransferQueue";
 import { TransferQueue } from "@/components/ui/TransferQueue";
+import { useExternalEditorWatcher } from "@/hooks/useExternalEditorWatcher";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -61,6 +62,8 @@ import {
   renameLocalItem,
   moveLocalItem,
   copyLocalItem,
+  openInExternalEditor,
+  openLocalFileInExternalEditor,
 } from "@/ui/main-axios.ts";
 import type { SidebarItem } from "./FileManagerSidebar";
 
@@ -99,6 +102,7 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
   const { t } = useTranslation();
   const { confirmWithToast } = useConfirmation();
   const { addTab } = useTabs();
+  const { isConnected: editorWsConnected, registerEditor, unregisterEditor, activeEditors } = useExternalEditorWatcher();
 
   const [currentHost, setCurrentHost] = useState<SSHHost | null>(
     initialHost || null,
@@ -951,16 +955,65 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
 
       await recordRecentFile(file);
 
-      // Try to detect if it's a text file and get editor type setting
-      let isTextFile = false;
+      // Load editor type setting
       let editorType = "internal";
-
       try {
-        // Load editor type setting
         const editorSetting = await getSetting("file_editor_type");
         editorType = editorSetting.value || "internal";
+      } catch (error) {
+        console.error("Failed to load editor type setting:", error);
+      }
 
-        // Try to read the file to check if it's a text file
+      // If external editor is selected, try to open in external editor first
+      if (editorType === "external") {
+        try {
+          // Load editor path setting
+          const editorPathSetting = await getSetting("file_editor_path");
+          const editorPath = editorPathSetting.value || undefined;
+
+          // Open file in external editor (backend will validate if it's a text file)
+          const result = await openInExternalEditor(
+            sshSessionId,
+            file.path,
+            editorPath,
+            currentHost.id,
+            currentHost.userId
+          );
+
+          if (result.success) {
+            // Register the editor with the watcher
+            registerEditor({
+              watcherId: result.watcherId,
+              remotePath: file.path,
+              sessionId: sshSessionId,
+              fileName: file.name,
+              hostId: currentHost.id,
+              userId: currentHost.userId
+            });
+
+            toast.success(`Opened ${file.name} in external editor`);
+            return; // Exit early on success
+          } else {
+            toast.error(`Failed to open ${file.name} in external editor`);
+            return; // Exit early on failure
+          }
+        } catch (error: any) {
+          console.error("Failed to open in external editor:", error);
+          // If external editor fails, fall back to checking if it's a text file for internal editor
+          if (error.message && error.message.includes("too large")) {
+            toast.error(`File is too large to edit (max 10MB)`);
+            return;
+          }
+          // Otherwise, fall through to try internal editor or FileWindow
+          toast.error(error.message || "Failed to open file in external editor");
+          return;
+        }
+      }
+
+      // For internal editor or when external editor is not selected
+      // Try to detect if it's a text file
+      let isTextFile = false;
+      try {
         await readRemoteFileContent(
           sshSessionId,
           file.path,
@@ -969,13 +1022,12 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
         );
         isTextFile = true;
       } catch (error: any) {
-        // If readRemoteFileContent fails, it's likely a binary file or too large
         console.log("File is not a text file or too large:", error.message);
         isTextFile = false;
       }
 
       // If it's a text file and using internal editor, open in RemoteEditor tab
-      if (isTextFile && editorType === "internal") {
+      if (isTextFile) {
         const newTab = {
           type: "remote_editor" as const,
           title: file.name,
@@ -989,7 +1041,7 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
         addTab(newTab);
         toast.success(t("fileManager.fileOpenedInEditor", { name: file.name }) || `Opened ${file.name} in editor`);
       } else {
-        // Otherwise, open in FileWindow (for binary files or external editor mode)
+        // Otherwise, open in FileWindow (for binary files or when can't read as text)
         const windowCount = Date.now() % 10;
         const baseOffsetX = 120 + windowCount * 30;
         const baseOffsetY = 120 + windowCount * 30;
@@ -1577,8 +1629,38 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
     if (file.type === "directory") {
       setLeftLocalPath(file.path);
     } else {
-      // For now, just show a toast that file viewing is not yet implemented
-      toast.info(t("fileManager.localFileViewingNotYetImplemented") || "Local file viewing not yet implemented");
+      // Load editor type setting
+      let editorType = "internal";
+      try {
+        const editorSetting = await getSetting("file_editor_type");
+        editorType = editorSetting.value || "internal";
+      } catch (error) {
+        console.error("Failed to load editor type setting:", error);
+      }
+
+      // If external editor is selected, open local file in external editor
+      if (editorType === "external") {
+        try {
+          // Load editor path setting
+          const editorPathSetting = await getSetting("file_editor_path");
+          const editorPath = editorPathSetting.value || undefined;
+
+          // Open local file in external editor
+          const result = await openLocalFileInExternalEditor(file.path, editorPath);
+
+          if (result.success) {
+            toast.success(`Opened ${file.name} in external editor`);
+          } else {
+            toast.error(`Failed to open ${file.name} in external editor`);
+          }
+        } catch (error: any) {
+          console.error("Failed to open local file in external editor:", error);
+          toast.error(error.message || "Failed to open local file in external editor");
+        }
+      } else {
+        // For internal editor, show not implemented message
+        toast.info(t("fileManager.localFileViewingNotYetImplemented") || "Local file viewing in internal editor not yet implemented");
+      }
     }
   }
 

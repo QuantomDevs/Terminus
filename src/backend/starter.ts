@@ -104,6 +104,7 @@ import { systemLogger, versionLogger } from "./utils/logger.js";
     await import("./ssh/server-stats.js");
     const localPtyModule = await import("./terminal/local-pty-manager.js");
     const transferProgressModule = await import("./ssh/transfer-progress.js");
+    const externalEditorWsModule = await import("./ssh/external-editor-ws.js");
 
     // Import and start local file manager server
     const localFileModule = await import("./local/local-file-manager.js");
@@ -137,6 +138,17 @@ import { systemLogger, versionLogger } from "./utils/logger.js";
             operation: "shutdown_transfer_progress",
           });
           await transferProgressModule.shutdownTransferProgressServer();
+        }
+
+        // Shutdown external editor WebSocket server
+        if (
+          externalEditorWsModule &&
+          typeof externalEditorWsModule.shutdownExternalEditorServer === "function"
+        ) {
+          systemLogger.info("Shutting down external editor WebSocket server...", {
+            operation: "shutdown_external_editor",
+          });
+          await externalEditorWsModule.shutdownExternalEditorServer();
         }
 
         systemLogger.info("Graceful shutdown complete", {

@@ -6,6 +6,7 @@ import path from "path";
 import os from "os";
 import { fileLogger } from "../utils/logger.js";
 import { AuthManager } from "../utils/auth-manager.js";
+import * as editorLauncher from "./editor-launcher.js";
 
 const app = express();
 
@@ -544,6 +545,123 @@ app.get("/local/readFile", async (req, res) => {
       fileLogger.error(`Failed to read local file: ${readError.message}`, readError);
       res.status(500).json({ error: readError.message });
     }
+  }
+});
+
+// Open local file in external editor
+app.post("/openInExternalEditor", async (req, res) => {
+  try {
+    const { filePath, editorPath } = req.body;
+
+    if (!filePath) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required parameter: filePath"
+      });
+    }
+
+    // Get safe path (validates it's within user's home directory)
+    const safePath = getSafeLocalPath(filePath);
+
+    // Check if file exists
+    try {
+      const stats = await fs.stat(safePath);
+      if (!stats.isFile()) {
+        return res.status(400).json({
+          success: false,
+          message: "Path is a directory, not a file"
+        });
+      }
+
+      // Check file size (10MB limit)
+      const fileSizeInMB = stats.size / (1024 * 1024);
+      if (fileSizeInMB > 10) {
+        return res.status(400).json({
+          success: false,
+          message: "File too large for editing (max 10MB)"
+        });
+      }
+    } catch (error) {
+      return res.status(404).json({
+        success: false,
+        message: "File not found"
+      });
+    }
+
+    // Launch external editor
+    try {
+      await editorLauncher.launchEditor(safePath, editorPath);
+
+      fileLogger.info("Opened local file in external editor", {
+        operation: "open_local_in_external_editor",
+        filePath: safePath,
+      });
+
+      res.json({
+        success: true,
+        message: "File opened in external editor",
+        filePath: safePath
+      });
+    } catch (editorErr) {
+      fileLogger.error("Failed to launch external editor for local file", editorErr, {
+        operation: "open_local_in_external_editor",
+        filePath: safePath,
+        editorPath,
+      });
+
+      res.status(500).json({
+        success: false,
+        message: "Failed to launch external editor",
+        error: editorErr instanceof Error ? editorErr.message : String(editorErr)
+      });
+    }
+  } catch (error) {
+    fileLogger.error("Unexpected error in openInExternalEditor", error, {
+      operation: "open_local_in_external_editor",
+    });
+
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Validate external editor path
+app.post("/validateEditorPath", async (req, res) => {
+  try {
+    const { editorPath } = req.body;
+
+    if (!editorPath) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required parameter: editorPath",
+        isValid: false
+      });
+    }
+
+    // Validate the editor path
+    const isValid = await editorLauncher.validateEditorPath(editorPath);
+
+    res.json({
+      success: true,
+      isValid,
+      message: isValid
+        ? "Editor path is valid"
+        : "Editor path not found or not executable"
+    });
+  } catch (error) {
+    fileLogger.error("Failed to validate editor path", error, {
+      operation: "validate_editor_path",
+    });
+
+    res.status(500).json({
+      success: false,
+      isValid: false,
+      message: "Failed to validate editor path",
+      error: error instanceof Error ? error.message : String(error)
+    });
   }
 });
 

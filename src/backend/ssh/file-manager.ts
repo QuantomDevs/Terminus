@@ -9,6 +9,9 @@ import { fileLogger } from "../utils/logger.js";
 import { SimpleDBOps } from "../utils/simple-db-ops.js";
 import { AuthManager } from "../utils/auth-manager.js";
 import { emitProgressEvent } from "./transfer-progress.js";
+import * as tempFileManager from "../local/temp-file-manager.js";
+import * as editorLauncher from "../local/editor-launcher.js";
+import { emitExternalEditorEvent } from "./external-editor-ws.js";
 
 function isExecutableFile(permissions: string, fileName: string): boolean {
   const hasExecutePermission =
@@ -93,6 +96,7 @@ interface SSHSession {
   isConnected: boolean;
   lastActive: number;
   timeout?: NodeJS.Timeout;
+  sftp?: any; // SFTP client instance
 }
 
 const sshSessions: Record<string, SSHSession> = {};
@@ -2551,13 +2555,297 @@ app.post("/ssh/file_manager/ssh/save_file_content", async (req, res) => {
   });
 });
 
+// Open file in external editor
+app.post("/ssh/file_manager/ssh/open_in_external_editor", async (req, res) => {
+  try {
+    const { sessionId, filePath, editorPath, hostId, userId } = req.body;
+
+    if (!sessionId || !filePath) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required parameters: sessionId and filePath"
+      });
+    }
+
+    const session = sshSessions[sessionId];
+    if (!session || !session.sftp) {
+      return res.status(404).json({
+        success: false,
+        message: "SSH session not found or SFTP not initialized"
+      });
+    }
+
+    // Read file content from remote server
+    session.sftp.readFile(filePath, "utf8", async (err: Error | null, data: string | Buffer) => {
+      if (err) {
+        fileLogger.error("Failed to read remote file for external editor", err, {
+          operation: "open_in_external_editor",
+          sessionId,
+          filePath,
+          hostId,
+          userId,
+        });
+
+        return res.status(500).json({
+          success: false,
+          message: "Failed to read remote file",
+          error: err.message
+        });
+      }
+
+      try {
+        const content = typeof data === 'string' ? data : data.toString('utf8');
+
+        // Check file size limit (10MB)
+        const fileSizeInMB = Buffer.byteLength(content, 'utf8') / (1024 * 1024);
+        if (fileSizeInMB > 10) {
+          return res.status(400).json({
+            success: false,
+            message: "File too large for editing (max 10MB)"
+          });
+        }
+
+        // Create temp file
+        const fileName = filePath.split('/').pop() || 'unnamed';
+        const tempFilePath = await tempFileManager.createTempFile(fileName, content);
+
+        // Generate watcher ID
+        const watcherId = `${sessionId}_${Date.now()}`;
+
+        // Set up file watcher (will be notified via WebSocket when file changes)
+        const watcher = tempFileManager.watchTempFile(
+          tempFilePath,
+          filePath,
+          sessionId,
+          hostId,
+          userId,
+          async (newContent) => {
+            // This callback will be triggered when file changes
+            // Emit WebSocket event to notify frontend
+            emitExternalEditorEvent({
+              watcherId,
+              type: 'file_changed',
+              filePath: tempFilePath,
+              remotePath: filePath,
+              sessionId,
+              timestamp: Date.now(),
+              content: newContent
+            });
+
+            fileLogger.info("Temp file changed, notified via WebSocket", {
+              operation: "temp_file_changed",
+              watcherId,
+              filePath,
+              sessionId,
+            });
+          }
+        );
+
+        // Launch external editor
+        try {
+          await editorLauncher.launchEditor(tempFilePath, editorPath);
+
+          // Emit WebSocket event for editor opened
+          emitExternalEditorEvent({
+            watcherId,
+            type: 'editor_opened',
+            filePath: tempFilePath,
+            remotePath: filePath,
+            sessionId,
+            timestamp: Date.now()
+          });
+
+          fileLogger.info("Opened file in external editor", {
+            operation: "open_in_external_editor",
+            sessionId,
+            filePath,
+            tempFilePath,
+            watcherId,
+            hostId,
+            userId,
+          });
+
+          res.json({
+            success: true,
+            tempFilePath,
+            watcherId,
+            message: "File opened in external editor"
+          });
+        } catch (editorErr) {
+          // Clean up temp file if editor launch fails
+          await tempFileManager.cleanupTempFile(tempFilePath);
+
+          fileLogger.error("Failed to launch external editor", editorErr, {
+            operation: "open_in_external_editor",
+            sessionId,
+            filePath,
+            editorPath,
+            hostId,
+            userId,
+          });
+
+          res.status(500).json({
+            success: false,
+            message: "Failed to launch external editor",
+            error: editorErr instanceof Error ? editorErr.message : String(editorErr)
+          });
+        }
+      } catch (tempErr) {
+        fileLogger.error("Failed to create temp file", tempErr, {
+          operation: "open_in_external_editor",
+          sessionId,
+          filePath,
+          hostId,
+          userId,
+        });
+
+        res.status(500).json({
+          success: false,
+          message: "Failed to create temporary file",
+          error: tempErr instanceof Error ? tempErr.message : String(tempErr)
+        });
+      }
+    });
+  } catch (error) {
+    fileLogger.error("Unexpected error in open_in_external_editor", error, {
+      operation: "open_in_external_editor",
+    });
+
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Stop watching temp file and clean up
+app.post("/ssh/file_manager/ssh/stop_watching_temp_file", async (req, res) => {
+  try {
+    const { watcherId } = req.body;
+
+    if (!watcherId) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required parameter: watcherId"
+      });
+    }
+
+    const watcher = tempFileManager.getWatcher(watcherId);
+    if (!watcher) {
+      return res.status(404).json({
+        success: false,
+        message: "Watcher not found"
+      });
+    }
+
+    // Stop watching and clean up temp file
+    const tempFilePath = watcher.filePath;
+    tempFileManager.stopWatching(watcherId);
+    await tempFileManager.cleanupTempFile(tempFilePath);
+
+    fileLogger.info("Stopped watching temp file", {
+      operation: "stop_watching_temp_file",
+      watcherId,
+      tempFilePath,
+    });
+
+    res.json({
+      success: true,
+      message: "Watcher stopped and temp file cleaned up"
+    });
+  } catch (error) {
+    fileLogger.error("Failed to stop watching temp file", error, {
+      operation: "stop_watching_temp_file",
+    });
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to stop watching temp file",
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Get temp file content for uploading back to server
+app.post("/ssh/file_manager/ssh/get_temp_file_content", async (req, res) => {
+  try {
+    const { watcherId } = req.body;
+
+    if (!watcherId) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required parameter: watcherId"
+      });
+    }
+
+    const watcher = tempFileManager.getWatcher(watcherId);
+    if (!watcher) {
+      return res.status(404).json({
+        success: false,
+        message: "Watcher not found"
+      });
+    }
+
+    // Read temp file content
+    const fs = await import('fs');
+    const content = await fs.promises.readFile(watcher.filePath, 'utf8');
+
+    res.json({
+      success: true,
+      content,
+      remotePath: watcher.remotePath,
+      sessionId: watcher.sessionId
+    });
+  } catch (error) {
+    fileLogger.error("Failed to get temp file content", error, {
+      operation: "get_temp_file_content",
+    });
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to read temp file content",
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Detect installed editors
+app.get("/ssh/file_manager/ssh/detect_editors", async (req, res) => {
+  try {
+    const editors = await editorLauncher.detectInstalledEditors();
+
+    res.json({
+      success: true,
+      editors
+    });
+  } catch (error) {
+    fileLogger.error("Failed to detect editors", error, {
+      operation: "detect_editors",
+    });
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to detect installed editors",
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Start temp file cleanup interval
+tempFileManager.startCleanupInterval();
+
 process.on("SIGINT", () => {
   Object.keys(sshSessions).forEach(cleanupSession);
+  tempFileManager.stopCleanupInterval();
+  tempFileManager.cleanupAll();
   process.exit(0);
 });
 
 process.on("SIGTERM", () => {
   Object.keys(sshSessions).forEach(cleanupSession);
+  tempFileManager.stopCleanupInterval();
+  tempFileManager.cleanupAll();
   process.exit(0);
 });
 

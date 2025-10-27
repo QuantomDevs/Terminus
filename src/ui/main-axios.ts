@@ -1490,6 +1490,69 @@ export async function saveRemoteFileContent(
   }
 }
 
+// Open file in external editor
+export async function openInExternalEditor(
+  sessionId: string,
+  filePath: string,
+  editorPath?: string,
+  hostId?: number,
+  userId?: string
+): Promise<{ tempFilePath: string; watcherId: string; success: boolean; message: string }> {
+  try {
+    const response = await fileManagerApi.post("/ssh/open_in_external_editor", {
+      sessionId,
+      filePath,
+      editorPath,
+      hostId,
+      userId,
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "open file in external editor");
+  }
+}
+
+// Stop watching temp file
+export async function stopWatchingTempFile(
+  watcherId: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const response = await fileManagerApi.post("/ssh/stop_watching_temp_file", {
+      watcherId,
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "stop watching temp file");
+  }
+}
+
+// Get temp file content
+export async function getTempFileContent(
+  watcherId: string
+): Promise<{ success: boolean; content: string; remotePath: string; sessionId: string }> {
+  try {
+    const response = await fileManagerApi.post("/ssh/get_temp_file_content", {
+      watcherId,
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "get temp file content");
+  }
+}
+
+// Detect installed editors
+export async function detectInstalledEditors(): Promise<{
+  success: boolean;
+  editors: Array<{ name: string; path: string; icon?: string }>;
+}> {
+  try {
+    const response = await fileManagerApi.get("/ssh/detect_editors");
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "detect installed editors");
+  }
+}
+
 // ============================================================================
 // LOCAL FILE OPERATIONS
 // ============================================================================
@@ -1613,6 +1676,38 @@ export async function copyLocalItem(
     return response.data;
   } catch (error) {
     handleApiError(error, "copy local item");
+    throw error;
+  }
+}
+
+// Open local file in external editor
+export async function openLocalFileInExternalEditor(
+  filePath: string,
+  editorPath?: string
+): Promise<{ success: boolean; message: string; filePath: string }> {
+  try {
+    const response = await localFileApi.post("/openInExternalEditor", {
+      filePath,
+      editorPath,
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "open local file in external editor");
+    throw error;
+  }
+}
+
+// Validate external editor path
+export async function validateEditorPath(
+  editorPath: string
+): Promise<{ success: boolean; isValid: boolean; message: string }> {
+  try {
+    const response = await localFileApi.post("/validateEditorPath", {
+      editorPath,
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "validate editor path");
     throw error;
   }
 }
