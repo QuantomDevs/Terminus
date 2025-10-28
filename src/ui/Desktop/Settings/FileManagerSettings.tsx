@@ -8,9 +8,9 @@ import {
 } from "@/components/ui/select.tsx";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { getSetting, saveSetting, validateEditorPath } from "@/ui/main-axios.ts";
+import { getSetting, saveSetting, validateEditorPath, listLocalFiles } from "@/ui/main-axios.ts";
 import { toast } from "sonner";
-import { Check, X } from "lucide-react";
+import { Check, X, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface FileManagerSettingsProps {}
@@ -26,8 +26,10 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
   const [showModified, setShowModified] = useState<boolean>(true);
   const [showPermissions, setShowPermissions] = useState<boolean>(true);
   const [showOwner, setShowOwner] = useState<boolean>(true);
+  const [displaySize, setDisplaySize] = useState<string>("medium");
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isValidatingEditor, setIsValidatingEditor] = useState<boolean>(false);
+  const [pathValidation, setPathValidation] = useState<"valid" | "invalid" | "unchecked">("unchecked");
 
   useEffect(() => {
     loadFileManagerDesignSetting();
@@ -36,6 +38,7 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
     loadDefaultLayoutSetting();
     loadLocalDefaultPathSetting();
     loadColumnVisibilitySettings();
+    loadDisplaySizeSetting();
   }, []);
 
   const loadFileManagerDesignSetting = async () => {
@@ -140,10 +143,28 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
     }
   };
 
+  const validateLocalPath = async (path: string) => {
+    if (!path) {
+      setPathValidation("unchecked");
+      return;
+    }
+
+    try {
+      await listLocalFiles(path);
+      setPathValidation("valid");
+    } catch (error) {
+      setPathValidation("invalid");
+    }
+  };
+
   const handleLocalDefaultPathChange = async (value: string) => {
     setLocalDefaultPath(value);
+    setPathValidation("unchecked");
+
     try {
       await saveSetting("file_manager_local_default_path", value);
+      // Validate the path after saving
+      await validateLocalPath(value);
     } catch (error) {
       console.error("Failed to save local default path setting:", error);
       // Revert on error
@@ -237,6 +258,28 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
       toast.error(error.message || "Failed to validate editor path");
     } finally {
       setIsValidatingEditor(false);
+    }
+  };
+
+  const loadDisplaySizeSetting = async () => {
+    try {
+      const response = await getSetting("file_manager_display_size");
+      setDisplaySize(response.value || "medium");
+    } catch (error) {
+      console.error("Failed to load display size setting:", error);
+      // Default to medium if setting doesn't exist
+      setDisplaySize("medium");
+    }
+  };
+
+  const handleDisplaySizeChange = async (value: string) => {
+    setDisplaySize(value);
+    try {
+      await saveSetting("file_manager_display_size", value);
+    } catch (error) {
+      console.error("Failed to save display size setting:", error);
+      // Revert on error
+      await loadDisplaySizeSetting();
     }
   };
 
@@ -433,14 +476,32 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
                 Default folder path for local file manager panels (e.g., /home/user/Documents)
               </p>
             </div>
-            <Input
-              type="text"
-              value={localDefaultPath}
-              onChange={(e) => handleLocalDefaultPathChange(e.target.value)}
-              placeholder="/home/user or leave empty for home directory"
-              disabled={isLoading}
-              className="w-full max-w-md bg-[var(--color-dark-bg)] border-[var(--color-dark-border)] text-gray-300 placeholder:text-gray-500"
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                type="text"
+                value={localDefaultPath}
+                onChange={(e) => handleLocalDefaultPathChange(e.target.value)}
+                placeholder="/home/user or leave empty for home directory"
+                disabled={isLoading}
+                className="w-full max-w-md bg-[var(--color-dark-bg)] border-[var(--color-dark-border)] text-gray-300 placeholder:text-gray-500"
+              />
+              {pathValidation === "valid" && (
+                <div className="flex items-center text-green-500" title="Path is valid">
+                  <Check className="w-5 h-5" />
+                </div>
+              )}
+              {pathValidation === "invalid" && (
+                <div className="flex items-center text-red-500" title="Path is invalid or does not exist">
+                  <X className="w-5 h-5" />
+                </div>
+              )}
+            </div>
+            {pathValidation === "invalid" && (
+              <p className="text-xs text-red-400 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                Path is invalid or does not exist. Please enter a valid directory path.
+              </p>
+            )}
             <p className="text-xs text-gray-500 italic">
               Leave empty to use your system's home directory. This path will be used when opening local file manager panels.
             </p>
@@ -524,6 +585,56 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
                 />
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Display Size Setting */}
+        <div className="p-4 rounded-lg bg-[var(--color-sidebar-bg)] border border-[var(--color-dark-border)]">
+          <div className="space-y-3">
+            <div className="space-y-0.5">
+              <label className="text-sm font-medium text-white">
+                Display Size
+              </label>
+              <p className="text-xs text-gray-400">
+                Adjust icon size, text size, and spacing in file manager
+              </p>
+            </div>
+            <Select
+              value={displaySize}
+              onValueChange={handleDisplaySizeChange}
+              disabled={isLoading}
+            >
+              <SelectTrigger className="w-full max-w-xs bg-[var(--color-dark-bg)] border-[var(--color-dark-border)] text-gray-300">
+                <SelectValue placeholder="Select size" />
+              </SelectTrigger>
+              <SelectContent className="bg-[var(--color-dark-bg)] border-[var(--color-dark-border)]">
+                <SelectItem
+                  value="small"
+                  className="text-gray-300 hover:bg-[var(--color-sidebar-accent)] hover:text-white focus:bg-[var(--color-sidebar-accent)] focus:text-white"
+                >
+                  Small
+                </SelectItem>
+                <SelectItem
+                  value="medium"
+                  className="text-gray-300 hover:bg-[var(--color-sidebar-accent)] hover:text-white focus:bg-[var(--color-sidebar-accent)] focus:text-white"
+                >
+                  Medium
+                </SelectItem>
+                <SelectItem
+                  value="large"
+                  className="text-gray-300 hover:bg-[var(--color-sidebar-accent)] hover:text-white focus:bg-[var(--color-sidebar-accent)] focus:text-white"
+                >
+                  Large
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500 italic">
+              {displaySize === "small"
+                ? "Small: Compact layout with smaller icons and text"
+                : displaySize === "medium"
+                ? "Medium: Default size with balanced icon and text sizes"
+                : "Large: Spacious layout with larger icons and text"}
+            </p>
           </div>
         </div>
       </div>

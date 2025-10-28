@@ -7,6 +7,7 @@ import { ApplicationSettings } from "@/ui/Desktop/Settings/ApplicationSettings.t
 import { TerminalSettings } from "@/ui/Desktop/Settings/TerminalSettings.tsx";
 import { FileManagerSettings } from "@/ui/Desktop/Settings/FileManagerSettings.tsx";
 import { ColorSchemeSettings } from "@/ui/Desktop/Settings/ColorSchemeSettings.tsx";
+import { ProfilesSecuritySettings } from "@/ui/Desktop/Settings/ProfilesSecuritySettings.tsx";
 
 interface SettingsPageProps {
   isTopbarOpen?: boolean;
@@ -21,7 +22,7 @@ export function SettingsPage({ isTopbarOpen, username, isAdmin }: SettingsPagePr
   const renderSettingsContent = () => {
     switch (activeCategory) {
       case "application":
-        return <ApplicationSettings username={username} isAdmin={isAdmin} />;
+        return <ApplicationSettings isAdmin={isAdmin} />;
       case "appearance":
         return (
           <div className="space-y-6">
@@ -40,6 +41,8 @@ export function SettingsPage({ isTopbarOpen, username, isAdmin }: SettingsPagePr
         );
       case "colorScheme":
         return <ColorSchemeSettings />;
+      case "profilesSecurity":
+        return <ProfilesSecuritySettings username={username} />;
       case "terminal":
         return <TerminalSettings />;
       case "fileManager":

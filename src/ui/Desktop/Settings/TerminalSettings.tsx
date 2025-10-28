@@ -3,6 +3,14 @@ import { Input } from "@/components/ui/input.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Checkbox } from "@/components/ui/checkbox.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
+import { Switch } from "@/components/ui/switch.tsx";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select.tsx";
 import { getSetting, saveSetting, getCookie, setCookie } from "@/ui/main-axios.ts";
 import { useTabs } from "@/ui/Desktop/Navigation/Tabs/TabContext.tsx";
 import { useTranslation } from "react-i18next";
@@ -13,6 +21,10 @@ export function TerminalSettings({}: TerminalSettingsProps) {
   const { t } = useTranslation();
   const { tabs } = useTabs() as any;
   const [fontSize, setFontSize] = useState<string>("14");
+  const [cursorStyle, setCursorStyle] = useState<string>("block");
+  const [cursorBlink, setCursorBlink] = useState<boolean>(true);
+  const [sessionRestore, setSessionRestore] = useState<boolean>(true);
+  const [autoOpenLocal, setAutoOpenLocal] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -20,6 +32,10 @@ export function TerminalSettings({}: TerminalSettingsProps) {
 
   useEffect(() => {
     loadFontSizeSetting();
+    loadCursorStyleSetting();
+    loadCursorBlinkSetting();
+    loadSessionRestoreSetting();
+    loadAutoOpenLocalSetting();
   }, []);
 
   const loadFontSizeSetting = async () => {
@@ -68,6 +84,94 @@ export function TerminalSettings({}: TerminalSettingsProps) {
       await loadFontSizeSetting();
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const loadCursorStyleSetting = async () => {
+    try {
+      const response = await getSetting("terminal_cursor_style");
+      setCursorStyle(response.value || "block");
+    } catch (error) {
+      console.error("Failed to load cursor style setting:", error);
+      // Default to block if setting doesn't exist
+      setCursorStyle("block");
+    }
+  };
+
+  const handleCursorStyleChange = async (value: string) => {
+    setCursorStyle(value);
+    try {
+      await saveSetting("terminal_cursor_style", value);
+    } catch (error) {
+      console.error("Failed to save cursor style setting:", error);
+      // Revert on error
+      await loadCursorStyleSetting();
+    }
+  };
+
+  const loadCursorBlinkSetting = async () => {
+    try {
+      const response = await getSetting("terminal_cursor_blink");
+      setCursorBlink(response.value === "true" || response.value === undefined);
+    } catch (error) {
+      console.error("Failed to load cursor blink setting:", error);
+      // Default to true if setting doesn't exist
+      setCursorBlink(true);
+    }
+  };
+
+  const handleCursorBlinkChange = async (value: boolean) => {
+    setCursorBlink(value);
+    try {
+      await saveSetting("terminal_cursor_blink", value.toString());
+    } catch (error) {
+      console.error("Failed to save cursor blink setting:", error);
+      // Revert on error
+      await loadCursorBlinkSetting();
+    }
+  };
+
+  const loadSessionRestoreSetting = async () => {
+    try {
+      const response = await getSetting("terminal_restore_sessions");
+      setSessionRestore(response.value === "true" || response.value === undefined);
+    } catch (error) {
+      console.error("Failed to load session restore setting:", error);
+      // Default to true if setting doesn't exist
+      setSessionRestore(true);
+    }
+  };
+
+  const handleSessionRestoreChange = async (value: boolean) => {
+    setSessionRestore(value);
+    try {
+      await saveSetting("terminal_restore_sessions", value.toString());
+    } catch (error) {
+      console.error("Failed to save session restore setting:", error);
+      // Revert on error
+      await loadSessionRestoreSetting();
+    }
+  };
+
+  const loadAutoOpenLocalSetting = async () => {
+    try {
+      const response = await getSetting("terminal_auto_open_local");
+      setAutoOpenLocal(response.value === "true");
+    } catch (error) {
+      console.error("Failed to load auto-open local terminal setting:", error);
+      // Default to false if setting doesn't exist
+      setAutoOpenLocal(false);
+    }
+  };
+
+  const handleAutoOpenLocalChange = async (value: boolean) => {
+    setAutoOpenLocal(value);
+    try {
+      await saveSetting("terminal_auto_open_local", value.toString());
+    } catch (error) {
+      console.error("Failed to save auto-open local terminal setting:", error);
+      // Revert on error
+      await loadAutoOpenLocalSetting();
     }
   };
 
@@ -274,6 +378,107 @@ export function TerminalSettings({}: TerminalSettingsProps) {
               This setting will be applied to all new terminal sessions. Existing terminals will use their current font size.
             </p>
           </div>
+        </div>
+
+        {/* Cursor Style Setting */}
+        <div className="p-4 rounded-lg bg-[var(--color-sidebar-bg)] border border-[var(--color-dark-border)]">
+          <div className="space-y-3">
+            <div className="space-y-0.5">
+              <label className="text-sm font-medium text-white">
+                Cursor Style
+              </label>
+              <p className="text-xs text-gray-400">
+                Choose the visual style of the terminal cursor
+              </p>
+            </div>
+            <Select
+              value={cursorStyle}
+              onValueChange={handleCursorStyleChange}
+              disabled={isLoading}
+            >
+              <SelectTrigger className="w-full max-w-xs bg-[var(--color-dark-bg)] border-[var(--color-dark-border)] text-gray-300">
+                <SelectValue placeholder="Select cursor style" />
+              </SelectTrigger>
+              <SelectContent className="bg-[var(--color-dark-bg)] border-[var(--color-dark-border)]">
+                <SelectItem
+                  value="bar"
+                  className="text-gray-300 hover:bg-[var(--color-sidebar-accent)] hover:text-white focus:bg-[var(--color-sidebar-accent)] focus:text-white"
+                >
+                  Thin Line
+                </SelectItem>
+                <SelectItem
+                  value="block"
+                  className="text-gray-300 hover:bg-[var(--color-sidebar-accent)] hover:text-white focus:bg-[var(--color-sidebar-accent)] focus:text-white"
+                >
+                  Thick Block
+                </SelectItem>
+                <SelectItem
+                  value="underline"
+                  className="text-gray-300 hover:bg-[var(--color-sidebar-accent)] hover:text-white focus:bg-[var(--color-sidebar-accent)] focus:text-white"
+                >
+                  Underscore
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500 italic">
+              {cursorStyle === "bar"
+                ? "Thin Line: A vertical bar cursor, similar to modern text editors"
+                : cursorStyle === "block"
+                ? "Thick Block: A solid block cursor, classic terminal style (default)"
+                : "Underscore: A horizontal line under the character position"}
+            </p>
+          </div>
+        </div>
+
+        {/* Cursor Blinking Setting */}
+        <div className="flex items-center justify-between p-4 rounded-lg bg-[var(--color-sidebar-bg)] border border-[var(--color-dark-border)]">
+          <div className="space-y-0.5">
+            <label className="text-sm font-medium text-white">
+              Cursor Blinking
+            </label>
+            <p className="text-xs text-gray-400">
+              Enable or disable cursor blinking animation
+            </p>
+          </div>
+          <Switch
+            checked={cursorBlink}
+            onCheckedChange={handleCursorBlinkChange}
+            disabled={isLoading}
+          />
+        </div>
+
+        {/* Session Restoration Setting */}
+        <div className="flex items-center justify-between p-4 rounded-lg bg-[var(--color-sidebar-bg)] border border-[var(--color-dark-border)]">
+          <div className="space-y-0.5">
+            <label className="text-sm font-medium text-white">
+              Session Restoration
+            </label>
+            <p className="text-xs text-gray-400">
+              Automatically restore open tabs when starting the application
+            </p>
+          </div>
+          <Switch
+            checked={sessionRestore}
+            onCheckedChange={handleSessionRestoreChange}
+            disabled={isLoading}
+          />
+        </div>
+
+        {/* Auto-open Local Terminal Setting */}
+        <div className="flex items-center justify-between p-4 rounded-lg bg-[var(--color-sidebar-bg)] border border-[var(--color-dark-border)]">
+          <div className="space-y-0.5">
+            <label className="text-sm font-medium text-white">
+              Auto-open Local Terminal on Startup
+            </label>
+            <p className="text-xs text-gray-400">
+              Automatically open a local terminal tab when the application starts
+            </p>
+          </div>
+          <Switch
+            checked={autoOpenLocal}
+            onCheckedChange={handleAutoOpenLocalChange}
+            disabled={isLoading}
+          />
         </div>
 
         <Separator className="my-6" />

@@ -12,7 +12,9 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { getCookie, isElectron } from "@/ui/main-axios.ts";
+import { getCookie, isElectron, getSetting } from "@/ui/main-axios.ts";
+import { TerminalEmptyState } from "./TerminalEmptyState";
+import { TerminalErrorState } from "./TerminalErrorState";
 
 interface LocalTerminalProps {
   isVisible: boolean;
@@ -42,12 +44,16 @@ export const LocalTerminal = forwardRef<any, LocalTerminalProps>(
     const [isConnected, setIsConnected] = useState(false);
     const [isConnecting, setIsConnecting] = useState(false);
     const [connectionError, setConnectionError] = useState<string | null>(null);
+    const [errorCode, setErrorCode] = useState<string | null>(null);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [retryCount, setRetryCount] = useState(0);
+    const MAX_RETRY_ATTEMPTS = 3;
     const isVisibleRef = useRef<boolean>(false);
     const isUnmountingRef = useRef(false);
     const shouldNotReconnectRef = useRef(false);
     const isConnectingRef = useRef(false);
     const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const hasAttemptedConnectionRef = useRef(false);
 
     const lastSentSizeRef = useRef<{ cols: number; rows: number } | null>(null);
     const pendingSizeRef = useRef<{ cols: number; rows: number } | null>(null);
@@ -110,6 +116,7 @@ export const LocalTerminal = forwardRef<any, LocalTerminalProps>(
         disconnect: () => {
           isUnmountingRef.current = true;
           shouldNotReconnectRef.current = true;
+          hasAttemptedConnectionRef.current = false; // Reset for future connections
           if (pingIntervalRef.current) {
             clearInterval(pingIntervalRef.current);
             pingIntervalRef.current = null;
@@ -121,6 +128,20 @@ export const LocalTerminal = forwardRef<any, LocalTerminalProps>(
           webSocketRef.current?.close();
           setIsConnected(false);
           setIsConnecting(false);
+          setConnectionError(null);
+          setErrorCode(null);
+        },
+        reconnect: () => {
+          // Retry connection
+          if (terminal && !isConnecting) {
+            setConnectionError(null);
+            setErrorCode(null);
+            hasAttemptedConnectionRef.current = false; // Reset so reconnect works
+            setRetryCount(prev => prev + 1);
+            const cols = terminal.cols || 80;
+            const rows = terminal.rows || 24;
+            connectToLocalTerminal(cols, rows);
+          }
         },
         fit: () => {
           fitAddonRef.current?.fit();
@@ -144,7 +165,7 @@ export const LocalTerminal = forwardRef<any, LocalTerminalProps>(
         },
         refresh: () => hardRefresh(),
       }),
-      [terminal],
+      [terminal, isConnecting],
     );
 
     function handleWindowResize() {
@@ -180,7 +201,9 @@ export const LocalTerminal = forwardRef<any, LocalTerminalProps>(
         setIsConnected(false);
         setIsConnecting(false);
         setConnectionError("Authentication required");
+        setErrorCode("NO_AUTH");
         isConnectingRef.current = false;
+        toast.error("Authentication required - please log in");
         return;
       }
 
@@ -220,6 +243,7 @@ export const LocalTerminal = forwardRef<any, LocalTerminalProps>(
       const ws = new WebSocket(wsUrl);
       webSocketRef.current = ws;
       setConnectionError(null);
+      setErrorCode(null);
       shouldNotReconnectRef.current = false;
       setIsConnecting(true);
 
@@ -237,7 +261,12 @@ export const LocalTerminal = forwardRef<any, LocalTerminalProps>(
             if (terminal) {
               terminal.clear();
             }
-            toast.error(t("terminal.connectionTimeout"));
+            const timeoutMessage = t("terminal.connectionTimeout") || "Connection timeout";
+            toast.error(timeoutMessage);
+            setConnectionError(timeoutMessage);
+            setErrorCode("CONNECTION_TIMEOUT");
+            setIsConnecting(false);
+            isConnectingRef.current = false;
             if (webSocketRef.current) {
               webSocketRef.current.close();
             }
@@ -288,14 +317,19 @@ export const LocalTerminal = forwardRef<any, LocalTerminalProps>(
             toast.success(t("terminal.connected") || "Local terminal connected");
           } else if (msg.type === "error") {
             const errorMessage = msg.message || t("terminal.unknownError");
+            const code = msg.code || "UNKNOWN_ERROR";
             toast.error(errorMessage);
             setConnectionError(errorMessage);
+            setErrorCode(code);
             setIsConnected(false);
             setIsConnecting(false);
             isConnectingRef.current = false;
 
-            if (onClose) {
-              onClose();
+            // Only auto-close for certain error types
+            if (code === "DATA_LOCKED" || code === "DATA_EXPIRED") {
+              if (onClose) {
+                onClose();
+              }
             }
           } else if (msg.type === "exit") {
             // PTY process exited
@@ -338,19 +372,29 @@ export const LocalTerminal = forwardRef<any, LocalTerminalProps>(
 
       ws.addEventListener("error", (error) => {
         console.error("Local terminal WebSocket error:", error);
-        setConnectionError("WebSocket connection error");
+        const errorMsg = t("terminal.connectionError") || "Failed to connect to local terminal";
+        setConnectionError(errorMsg);
+        setErrorCode("WS_CONNECTION_ERROR");
         setIsConnected(false);
         setIsConnecting(false);
         isConnectingRef.current = false;
 
-        toast.error(
-          t("terminal.connectionError") || "Failed to connect to local terminal",
-        );
+        toast.error(errorMsg);
       });
     }
 
     useEffect(() => {
-      if (terminal && isAuthenticated && !isConnected && !isConnecting) {
+      // Only attempt connection once automatically on mount
+      // After that, reconnection must be done manually via retry button
+      if (
+        terminal &&
+        isAuthenticated &&
+        !isConnected &&
+        !isConnecting &&
+        !hasAttemptedConnectionRef.current &&
+        !connectionError // Don't auto-connect if there's an existing error
+      ) {
+        hasAttemptedConnectionRef.current = true;
         const cols = terminal.cols || 80;
         const rows = terminal.rows || 24;
         connectToLocalTerminal(cols, rows);
@@ -368,7 +412,7 @@ export const LocalTerminal = forwardRef<any, LocalTerminalProps>(
           clearTimeout(connectionTimeoutRef.current);
         }
       };
-    }, [terminal, isAuthenticated]);
+    }, [terminal, isAuthenticated, isConnected, isConnecting, connectionError]);
 
     useEffect(() => {
       if (terminal && xtermRef.current) {
@@ -380,13 +424,43 @@ export const LocalTerminal = forwardRef<any, LocalTerminalProps>(
         terminal.unicode.activeVersion = "11";
         terminal.loadAddon(new WebLinksAddon());
 
-        terminal.options = {
-          ...terminal.options,
-          fontFamily:
-            '"Cascadia Code", "Fira Code", "Consolas", "Courier New", monospace',
-          fontSize: 14,
-          cursorBlink: true,
-          cursorStyle: "bar",
+        // Load terminal settings
+        const loadTerminalSettings = async () => {
+          let fontSize = 14;
+          let cursorBlink = true;
+          let cursorStyle: "bar" | "block" | "underline" = "block";
+
+          try {
+            const fontSizeRes = await getSetting("terminal_font_size");
+            fontSize = parseInt(fontSizeRes.value || "14", 10);
+          } catch (error) {
+            console.error("Failed to load font size setting:", error);
+          }
+
+          try {
+            const cursorBlinkRes = await getSetting("terminal_cursor_blink");
+            cursorBlink = cursorBlinkRes.value === "true" || cursorBlinkRes.value === undefined;
+          } catch (error) {
+            console.error("Failed to load cursor blink setting:", error);
+          }
+
+          try {
+            const cursorStyleRes = await getSetting("terminal_cursor_style");
+            const style = cursorStyleRes.value || "block";
+            if (style === "bar" || style === "block" || style === "underline") {
+              cursorStyle = style;
+            }
+          } catch (error) {
+            console.error("Failed to load cursor style setting:", error);
+          }
+
+          terminal.options = {
+            ...terminal.options,
+            fontFamily:
+              '"Cascadia Code", "Fira Code", "Consolas", "Courier New", monospace',
+            fontSize,
+            cursorBlink,
+            cursorStyle,
           theme: {
             background: "#0f0f0f",
             foreground: "#ffffff",
@@ -413,11 +487,15 @@ export const LocalTerminal = forwardRef<any, LocalTerminalProps>(
           scrollback: 10000,
         };
 
-        setTimeout(() => {
-          fitAddon.fit();
-          if (terminal) scheduleNotify(terminal.cols, terminal.rows);
-          setVisible(true);
-        }, 10);
+          setTimeout(() => {
+            fitAddon.fit();
+            if (terminal) scheduleNotify(terminal.cols, terminal.rows);
+            setVisible(true);
+          }, 10);
+        };
+
+        // Call loadTerminalSettings
+        loadTerminalSettings();
 
         terminal.attachCustomKeyEventHandler((e: KeyboardEvent) => {
           if (e.ctrlKey && e.shiftKey && e.key === "C") {
@@ -436,6 +514,49 @@ export const LocalTerminal = forwardRef<any, LocalTerminalProps>(
         };
       }
     }, [terminal, xtermRef]);
+
+    const handleRetry = () => {
+      if (terminal && !isConnecting) {
+        setConnectionError(null);
+        setErrorCode(null);
+        hasAttemptedConnectionRef.current = false; // Reset so retry works
+        const cols = terminal.cols || 80;
+        const rows = terminal.rows || 24;
+        connectToLocalTerminal(cols, rows);
+      }
+    };
+
+    // Show error state if there's a connection error
+    if (connectionError && errorCode) {
+      return (
+        <TerminalErrorState
+          error={connectionError}
+          errorCode={errorCode}
+          onRetry={handleRetry}
+          onClose={onClose}
+        />
+      );
+    }
+
+    // Show empty state if not connected and not connecting
+    if (!isConnected && !isConnecting && !connectionError) {
+      return (
+        <TerminalEmptyState
+          message="Terminal Not Connected"
+          description="Establishing connection to local terminal..."
+        />
+      );
+    }
+
+    // Show connecting state
+    if (isConnecting) {
+      return (
+        <TerminalEmptyState
+          message="Connecting..."
+          description="Please wait while we establish a connection to your local terminal"
+        />
+      );
+    }
 
     return (
       <div

@@ -110,6 +110,14 @@ import { systemLogger, versionLogger } from "./utils/logger.js";
     const localFileModule = await import("./local/local-file-manager.js");
     await localFileModule.startLocalFileServer();
 
+    // Start local terminal WebSocket server
+    if (localPtyModule && typeof localPtyModule.startLocalTerminalServer === "function") {
+      systemLogger.info("Starting local terminal server...", {
+        operation: "start_local_terminal",
+      });
+      localPtyModule.startLocalTerminalServer();
+    }
+
     // Graceful shutdown handler
     async function gracefulShutdown(signal: string) {
       systemLogger.info(

@@ -12,7 +12,7 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { getCookie, isElectron } from "@/ui/main-axios.ts";
+import { getCookie, isElectron, getSetting } from "@/ui/main-axios.ts";
 
 interface SSHTerminalProps {
   hostConfig: any;
@@ -507,11 +507,48 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
   useEffect(() => {
     if (!terminal || !xtermRef.current) return;
 
-    terminal.options = {
-      cursorBlink: true,
-      cursorStyle: "bar",
-      scrollback: 10000,
-      fontSize: 14,
+    // Load terminal settings
+    const loadTerminalSettings = async () => {
+      let fontSize = 14;
+      let cursorBlink = true;
+      let cursorStyle: "bar" | "block" | "underline" = "block";
+
+      // Load settings with default fallbacks (404 errors are expected if settings don't exist)
+      try {
+        const fontSizeRes = await getSetting("terminal_font_size");
+        const parsedSize = parseInt(fontSizeRes.value || "14", 10);
+        if (!isNaN(parsedSize) && parsedSize >= 8 && parsedSize <= 32) {
+          fontSize = parsedSize;
+        }
+      } catch (error) {
+        // Setting doesn't exist, use default fontSize
+      }
+
+      try {
+        const cursorBlinkRes = await getSetting("terminal_cursor_blink");
+        // If value is explicitly set, use it; otherwise default to true
+        if (cursorBlinkRes.value !== undefined && cursorBlinkRes.value !== null) {
+          cursorBlink = cursorBlinkRes.value === "true" || cursorBlinkRes.value === true;
+        }
+      } catch (error) {
+        // Setting doesn't exist, use default cursorBlink (true)
+      }
+
+      try {
+        const cursorStyleRes = await getSetting("terminal_cursor_style");
+        const style = cursorStyleRes.value || "block";
+        if (style === "bar" || style === "block" || style === "underline") {
+          cursorStyle = style;
+        }
+      } catch (error) {
+        // Setting doesn't exist, use default cursorStyle
+      }
+
+      terminal.options = {
+        cursorBlink,
+        cursorStyle,
+        scrollback: 10000,
+        fontSize,
       fontFamily:
         '"Caskaydia Cove Nerd Font Mono", "SF Mono", Consolas, "Liberation Mono", monospace',
       theme: { background: "#18181b", foreground: "#f7f7f7" },
@@ -529,20 +566,24 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
       lineHeight: 1.2,
     };
 
-    const fitAddon = new FitAddon();
-    const clipboardAddon = new ClipboardAddon();
-    const unicode11Addon = new Unicode11Addon();
-    const webLinksAddon = new WebLinksAddon();
+      const fitAddon = new FitAddon();
+      const clipboardAddon = new ClipboardAddon();
+      const unicode11Addon = new Unicode11Addon();
+      const webLinksAddon = new WebLinksAddon();
 
-    fitAddonRef.current = fitAddon;
-    terminal.loadAddon(fitAddon);
-    terminal.loadAddon(clipboardAddon);
-    terminal.loadAddon(unicode11Addon);
-    terminal.loadAddon(webLinksAddon);
+      fitAddonRef.current = fitAddon;
+      terminal.loadAddon(fitAddon);
+      terminal.loadAddon(clipboardAddon);
+      terminal.loadAddon(unicode11Addon);
+      terminal.loadAddon(webLinksAddon);
 
-    terminal.unicode.activeVersion = "11";
+      terminal.unicode.activeVersion = "11";
 
-    terminal.open(xtermRef.current);
+      terminal.open(xtermRef.current);
+    };
+
+    // Call loadTerminalSettings
+    loadTerminalSettings();
 
     const element = xtermRef.current;
     const handleContextMenu = async (e: MouseEvent) => {

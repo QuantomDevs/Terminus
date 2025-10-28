@@ -312,6 +312,40 @@ function FileManagerContent({ initialHost, onClose }: FileManagerProps) {
     loadDefaultLayout();
   }, []);
 
+  // Save layout preference when it changes
+  useEffect(() => {
+    const saveLayoutPreference = async () => {
+      try {
+        await saveSetting("file_manager_default_layout", viewMode);
+      } catch (error) {
+        console.error("Failed to save layout preference:", error);
+      }
+    };
+    // Only save if viewMode has been set (not on initial mount with default "grid")
+    if (viewMode) {
+      saveLayoutPreference();
+    }
+  }, [viewMode]);
+
+  // Load default local path on mount
+  useEffect(() => {
+    const loadDefaultLocalPath = async () => {
+      try {
+        const response = await getSetting("file_manager_local_default_path");
+        if (response.value) {
+          setLeftLocalPath(response.value);
+          // Load the directory if it's a local panel
+          if (leftPanelType === "local") {
+            loadLocalDirectory(response.value);
+          }
+        }
+      } catch (error) {
+        console.log("No default local path setting found");
+      }
+    };
+    loadDefaultLocalPath();
+  }, []);
+
   useEffect(() => {
     if (currentHost) {
       initializeSSHConnection();

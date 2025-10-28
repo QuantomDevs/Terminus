@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { VersionAlert } from "@/components/ui/version-alert.tsx";
 import { RefreshCw, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { checkElectronUpdate, isElectron } from "@/ui/main-axios.ts";
+import { checkElectronUpdate, isElectron, getSetting } from "@/ui/main-axios.ts";
 
 interface VersionCheckModalProps {
   onDismiss: () => void;
@@ -22,11 +22,26 @@ export function VersionCheckModal({
   const [versionDismissed, setVersionDismissed] = useState(false);
 
   useEffect(() => {
-    if (isElectron()) {
-      checkForUpdates();
-    } else {
-      onContinue();
-    }
+    const initCheck = async () => {
+      if (isElectron()) {
+        try {
+          const setting = await getSetting("auto_update_check");
+          // Only check if setting is explicitly "true" or doesn't exist (default to true)
+          if (!setting || setting.value === "true" || setting.value === true) {
+            checkForUpdates();
+          } else {
+            // Setting is disabled, skip check and continue
+            onContinue();
+          }
+        } catch (error) {
+          // If setting can't be loaded, default to checking (safer default)
+          checkForUpdates();
+        }
+      } else {
+        onContinue();
+      }
+    };
+    initCheck();
   }, []);
 
   const checkForUpdates = async () => {

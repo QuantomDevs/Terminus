@@ -662,10 +662,21 @@ export function HomepageAuth({
   }
 
   return (
-    <div
-      className={`w-[420px] max-w-full p-6 flex flex-col bg-dark-bg border-2 border-dark-border rounded-md ${className || ""}`}
-      {...props}
-    >
+    <>
+      {/* Invisible header for Electron window dragging */}
+      {isElectron() && (
+        <div
+          className="fixed top-0 left-0 right-0 h-8 z-50"
+          style={{
+            WebkitAppRegion: "drag",
+          } as React.CSSProperties}
+        />
+      )}
+
+      <div
+        className={`w-[420px] max-w-full p-6 flex flex-col bg-dark-bg border-2 border-dark-border rounded-md ${className || ""}`}
+        {...props}
+      >
       {totpRequired && (
         <div className="flex flex-col gap-5">
           <div className="mb-6 text-center">
@@ -1078,5 +1089,6 @@ export function HomepageAuth({
         </>
       )}
     </div>
+    </>
   );
 }

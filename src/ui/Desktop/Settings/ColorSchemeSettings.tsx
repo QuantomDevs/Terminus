@@ -74,11 +74,16 @@ export const ColorSchemeSettings = () => {
   const [selectedThemeId, setSelectedThemeId] = useState<string>("");
   const [newThemeName, setNewThemeName] = useState("");
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Load current colors from CSS variables
   useEffect(() => {
-    loadCurrentColors();
-    loadThemes();
+    const initializeSettings = async () => {
+      loadCurrentColors();
+      await loadThemes();
+      setIsLoading(false);
+    };
+    initializeSettings();
   }, []);
 
   const loadCurrentColors = () => {
@@ -108,6 +113,7 @@ export const ColorSchemeSettings = () => {
       }
     } catch (error) {
       console.error("Failed to load themes:", error);
+      toast.error("Failed to load themes");
     }
   };
 
@@ -212,6 +218,17 @@ export const ColorSchemeSettings = () => {
     },
     {} as Record<string, typeof COLOR_VARIABLES>,
   );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">Loading color schemes...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

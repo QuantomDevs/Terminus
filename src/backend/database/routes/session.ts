@@ -69,8 +69,20 @@ router.get("/", authenticateJWT, async (req: Request, res: Response) => {
       return res.status(404).json({ error: "No session state found" });
     }
 
+    // Safely parse JSON with error handling
+    let sessionData;
+    try {
+      sessionData = JSON.parse(session[0].sessionData);
+    } catch (parseError) {
+      apiLogger.error("Failed to parse session data", parseError, {
+        operation: "parse_session_state",
+        userId,
+      });
+      return res.status(500).json({ error: "Corrupted session data" });
+    }
+
     res.json({
-      sessionData: JSON.parse(session[0].sessionData),
+      sessionData,
       updatedAt: session[0].updatedAt,
     });
   } catch (err) {
@@ -90,6 +102,11 @@ router.post("/", authenticateJWT, async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Session data is required" });
   }
 
+  // Validate sessionData is an object or array
+  if (typeof sessionData !== "object") {
+    return res.status(400).json({ error: "Session data must be an object or array" });
+  }
+
   try {
     const userId = (req as any).user?.userId;
     if (!userId) {
@@ -98,8 +115,17 @@ router.post("/", authenticateJWT, async (req: Request, res: Response) => {
 
     const db = getDb();
 
-    // Serialize session data
-    const serializedData = JSON.stringify(sessionData);
+    // Serialize session data with error handling
+    let serializedData;
+    try {
+      serializedData = JSON.stringify(sessionData);
+    } catch (serializeError) {
+      apiLogger.error("Failed to serialize session data", serializeError, {
+        operation: "serialize_session_state",
+        userId,
+      });
+      return res.status(400).json({ error: "Invalid session data format" });
+    }
 
     // Check if session exists for this user
     const existing = await db

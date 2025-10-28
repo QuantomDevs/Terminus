@@ -809,7 +809,7 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
               size="sm"
             >
               <Terminal className="h-3.5 w-3.5 mr-1.5" />
-              {t("hosts.newLocalTerminal") || "New Local Terminal"}
+              {t("hosts.newLocalTerminal") || "New Terminal"}
             </Button>
 
             <Button onClick={fetchHosts} variant="outline" size="sm">

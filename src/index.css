@@ -112,6 +112,31 @@
   --accent-color-hover: #2563eb;
   --accent-color-light: #60a5fa;
   --accent-color-dark: #1d4ed8;
+
+  /* File Manager Display Size Variables - Default to Medium */
+  --fm-icon-size: 48px;
+  --fm-text-size: 14px;
+  --fm-grid-gap: 16px;
+  --fm-padding: 12px;
+  --fm-item-width: 120px;
+}
+
+/* File Manager Small Display Size */
+.fm-display-small {
+  --fm-icon-size: 32px;
+  --fm-text-size: 12px;
+  --fm-grid-gap: 12px;
+  --fm-padding: 8px;
+  --fm-item-width: 100px;
+}
+
+/* File Manager Large Display Size */
+.fm-display-large {
+  --fm-icon-size: 64px;
+  --fm-text-size: 16px;
+  --fm-grid-gap: 20px;
+  --fm-padding: 16px;
+  --fm-item-width: 140px;
 }
 
 .dark {

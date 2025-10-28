@@ -12,6 +12,7 @@ import {
   getSessionState,
   saveSessionState,
   deleteSessionState,
+  getSetting,
 } from "../../../main-axios.js";
 
 export type Tab = TabContextTab;
@@ -193,6 +194,20 @@ export function TabProvider({ children }: TabProviderProps) {
           return;
         }
 
+        // Check if session restoration is enabled
+        try {
+          const restoreSetting = await getSetting("terminal_restore_sessions");
+          const restoreEnabled = restoreSetting.value === "true" || restoreSetting.value === undefined;
+          if (!restoreEnabled) {
+            // Session restoration disabled, skip restoration
+            setSessionRestored(true);
+            return;
+          }
+        } catch (error) {
+          // If setting doesn't exist, default to enabled (backward compatibility)
+          console.debug("Session restore setting not found, defaulting to enabled");
+        }
+
         const sessionData = await getSessionState();
 
         if (sessionData && sessionData.sessionData && sessionData.sessionData.length > 0) {
@@ -243,6 +258,33 @@ export function TabProvider({ children }: TabProviderProps) {
 
     restoreSession();
   }, [t]);
+
+  // Auto-open local terminal on startup if enabled
+  useEffect(() => {
+    if (!sessionRestored) return;
+
+    const autoOpenLocalTerminal = async () => {
+      try {
+        const autoOpenSetting = await getSetting("terminal_auto_open_local");
+        const autoOpenEnabled = autoOpenSetting.value === "true";
+
+        if (autoOpenEnabled) {
+          // Check if there's already a local_terminal tab open
+          const hasLocalTerminal = tabs.some(tab => tab.type === "local_terminal");
+
+          if (!hasLocalTerminal) {
+            // Add a local terminal tab
+            addTab({ type: "local_terminal", title: t("nav.localTerminal") });
+          }
+        }
+      } catch (error) {
+        // Setting doesn't exist or error occurred, skip auto-open
+        console.debug("Auto-open local terminal setting not found or error:", error);
+      }
+    };
+
+    autoOpenLocalTerminal();
+  }, [sessionRestored, tabs, addTab, t]);
 
   // Save session state when tabs change (but only after session has been restored)
   useEffect(() => {

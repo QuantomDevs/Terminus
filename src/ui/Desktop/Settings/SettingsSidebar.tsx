@@ -6,6 +6,7 @@ export type SettingsCategory =
   | "application"
   | "appearance"
   | "colorScheme"
+  | "profilesSecurity"
   | "terminal"
   | "fileManager"
   | "hotkeys";
@@ -23,6 +24,7 @@ export function SettingsSidebar({
     { id: "application", label: "Application" },
     { id: "appearance", label: "Appearance" },
     { id: "colorScheme", label: "Color Scheme" },
+    { id: "profilesSecurity", label: "Profiles & Security" },
     { id: "terminal", label: "Terminal" },
     { id: "fileManager", label: "File Manager" },
     { id: "hotkeys", label: "Hotkeys" },

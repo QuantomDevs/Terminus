@@ -72,6 +72,28 @@ export function Tab({
       }
     };
     loadSettings();
+
+    // Listen for settings changes
+    const handleSettingsChange = (event: CustomEvent) => {
+      const { setting, value } = event.detail;
+      switch (setting) {
+        case "tab_width":
+          setTabWidth(value);
+          break;
+        case "hide_close_button":
+          setHideCloseButton(value === true || value === "true");
+          break;
+        case "hide_options_button":
+          setHideOptionsButton(value === true || value === "true");
+          break;
+      }
+    };
+
+    window.addEventListener("tab-settings-changed", handleSettingsChange as EventListener);
+
+    return () => {
+      window.removeEventListener("tab-settings-changed", handleSettingsChange as EventListener);
+    };
   }, []);
 
   const handleRenameSubmit = () => {

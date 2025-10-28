@@ -102,14 +102,16 @@ interface FileManagerGridProps {
 }
 
 const getFileIcon = (file: FileItem, viewMode: "grid" | "list" = "grid") => {
-  const iconClass = viewMode === "grid" ? "w-8 h-8" : "w-6 h-6";
+  // Use CSS variables for icon size when in grid mode, fixed size for list mode
+  const iconClass = viewMode === "grid" ? "" : "w-6 h-6";
+  const iconStyle = viewMode === "grid" ? { width: "var(--fm-icon-size)", height: "var(--fm-icon-size)" } : {};
 
   if (file.type === "directory") {
-    return <Folder className={`${iconClass} text-muted-foreground`} />;
+    return <Folder className={`${iconClass} text-muted-foreground`} style={iconStyle} />;
   }
 
   if (file.type === "link") {
-    return <FileSymlink className={`${iconClass} text-muted-foreground`} />;
+    return <FileSymlink className={`${iconClass} text-muted-foreground`} style={iconStyle} />;
   }
 
   const ext = file.name.split(".").pop()?.toLowerCase();
@@ -118,30 +120,30 @@ const getFileIcon = (file: FileItem, viewMode: "grid" | "list" = "grid") => {
     case "txt":
     case "md":
     case "readme":
-      return <FileText className={`${iconClass} text-muted-foreground`} />;
+      return <FileText className={`${iconClass} text-muted-foreground`} style={iconStyle} />;
     case "png":
     case "jpg":
     case "jpeg":
     case "gif":
     case "bmp":
     case "svg":
-      return <FileImage className={`${iconClass} text-muted-foreground`} />;
+      return <FileImage className={`${iconClass} text-muted-foreground`} style={iconStyle} />;
     case "mp4":
     case "avi":
     case "mkv":
     case "mov":
-      return <FileVideo className={`${iconClass} text-muted-foreground`} />;
+      return <FileVideo className={`${iconClass} text-muted-foreground`} style={iconStyle} />;
     case "mp3":
     case "wav":
     case "flac":
     case "ogg":
-      return <FileAudio className={`${iconClass} text-muted-foreground`} />;
+      return <FileAudio className={`${iconClass} text-muted-foreground`} style={iconStyle} />;
     case "zip":
     case "tar":
     case "gz":
     case "rar":
     case "7z":
-      return <Archive className={`${iconClass} text-muted-foreground`} />;
+      return <Archive className={`${iconClass} text-muted-foreground`} style={iconStyle} />;
     case "js":
     case "ts":
     case "jsx":
@@ -155,7 +157,7 @@ const getFileIcon = (file: FileItem, viewMode: "grid" | "list" = "grid") => {
     case "rb":
     case "go":
     case "rs":
-      return <Code className={`${iconClass} text-muted-foreground`} />;
+      return <Code className={`${iconClass} text-muted-foreground`} style={iconStyle} />;
     case "json":
     case "xml":
     case "yaml":
@@ -164,9 +166,9 @@ const getFileIcon = (file: FileItem, viewMode: "grid" | "list" = "grid") => {
     case "ini":
     case "conf":
     case "config":
-      return <Settings className={`${iconClass} text-muted-foreground`} />;
+      return <Settings className={`${iconClass} text-muted-foreground`} style={iconStyle} />;
     default:
-      return <File className={`${iconClass} text-muted-foreground`} />;
+      return <File className={`${iconClass} text-muted-foreground`} style={iconStyle} />;
   }
 };
 
@@ -217,13 +219,16 @@ export function FileManagerGrid({
   const [showPermissions, setShowPermissions] = useState(true);
   const [showOwner, setShowOwner] = useState(true);
 
+  // Display size setting
+  const [displaySize, setDisplaySize] = useState<string>("medium");
+
   const [dragState, setDragState] = useState<DragState>({
     type: "none",
     files: [],
     counter: 0,
   });
 
-  // Load column visibility settings
+  // Load column visibility settings and display size
   useEffect(() => {
     const loadColumnSettings = async () => {
       try {
@@ -250,6 +255,11 @@ export function FileManagerGrid({
         const ownerRes = await getSetting("file_manager_show_owner");
         setShowOwner(ownerRes.value === "true" || ownerRes.value === undefined);
       } catch { setShowOwner(true); }
+
+      try {
+        const displaySizeRes = await getSetting("file_manager_display_size");
+        setDisplaySize(displaySizeRes.value || "medium");
+      } catch { setDisplaySize("medium"); }
     };
 
     loadColumnSettings();
@@ -883,20 +893,29 @@ export function FileManagerGrid({
     );
   }
 
-  return (
-    <div className="h-full flex flex-col bg-dark-bg overflow-hidden">
-      <div className="flex-shrink-0 border-b border-dark-border">
-        {/* Remote Connection Info */}
-        {panelType === "remote" && currentHost && (
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-dark-border bg-dark-bg/50">
-            <span className="text-sm font-medium text-white">{currentHost.name}</span>
-            <span className="text-xs text-muted-foreground">
-              {currentHost.ip}:{currentHost.port}
-            </span>
-          </div>
-        )}
+  // Get display size CSS class
+  const displaySizeClass =
+    displaySize === "small" ? "fm-display-small" :
+    displaySize === "large" ? "fm-display-large" : "";
 
+  return (
+    <div className={cn("h-full flex flex-col bg-dark-bg overflow-hidden", displaySizeClass)}>
+      <div className="flex-shrink-0 border-b border-dark-border">
+        {/* Navigation bar with integrated connection info */}
         <div className="flex items-center gap-1 p-2 border-b border-dark-border">
+          {/* Remote Connection Info - integrated into navigation bar */}
+          {panelType === "remote" && currentHost && (
+            <>
+              <div className="flex items-center gap-2 px-2 py-1 mr-2 rounded bg-dark-bg/50 border border-dark-border/50">
+                <span className="text-xs font-medium text-white">{currentHost.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {currentHost.ip}:{currentHost.port}
+                </span>
+              </div>
+              <div className="h-4 w-px bg-dark-border mr-1" />
+            </>
+          )}
+
           <button
             onClick={goBack}
             disabled={historyIndex <= 0 || !isActive}
@@ -955,16 +974,14 @@ export function FileManagerGrid({
             <div className="flex border border-dark-border rounded-md overflow-hidden">
               <button
                 onClick={() => onViewModeChange("grid")}
-                disabled={!isActive}
                 className={cn(
                   "p-1",
-                  viewMode === "grid" && isActive
+                  viewMode === "grid"
                     ? "bg-dark-hover"
                     : "hover:bg-dark-hover/50",
-                  !isActive && "opacity-50 cursor-not-allowed",
                 )}
                 style={
-                  isActive && viewMode === "grid"
+                  viewMode === "grid"
                     ? { color: "var(--accent-color)" }
                     : {}
                 }
@@ -974,16 +991,14 @@ export function FileManagerGrid({
               </button>
               <button
                 onClick={() => onViewModeChange("list")}
-                disabled={!isActive}
                 className={cn(
                   "p-1",
-                  viewMode === "list" && isActive
+                  viewMode === "list"
                     ? "bg-dark-hover"
                     : "hover:bg-dark-hover/50",
-                  !isActive && "opacity-50 cursor-not-allowed",
                 )}
                 style={
-                  isActive && viewMode === "list"
+                  viewMode === "list"
                     ? { color: "var(--accent-color)" }
                     : {}
                 }
@@ -1113,7 +1128,10 @@ export function FileManagerGrid({
               </div>
             </div>
           ) : viewMode === "grid" ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+            <div
+              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8"
+              style={{ gap: "var(--fm-grid-gap)" }}
+            >
               {createIntent && (
                 <CreateIntentGridItem
                   intent={createIntent}
@@ -1174,7 +1192,8 @@ export function FileManagerGrid({
                           />
                         ) : (
                           <p
-                            className="text-xs text-foreground break-words px-1 py-0.5 rounded text-center leading-tight w-full"
+                            className="text-foreground break-words px-1 py-0.5 rounded text-center leading-tight w-full"
+                            style={{ fontSize: "var(--fm-text-size)" }}
                             title={file.name}
                           >
                             {file.name}
@@ -1247,8 +1266,8 @@ export function FileManagerGrid({
                     draggable={true}
                     className={cn(
                       "flex items-center gap-3 p-2 cursor-pointer",
-                      // Alternating row colors using primary/secondary
-                      index % 2 === 0 ? "bg-primary/5" : "bg-secondary/5",
+                      // Alternating row colors using primary/secondary (offset by 1 to account for parent folder)
+                      (index + 1) % 2 === 0 ? "bg-primary/5" : "bg-secondary/5",
                       "hover:bg-accent hover:text-accent-foreground",
                       isSelected && "bg-primary/20",
                       dragState.target?.path === file.path &&
