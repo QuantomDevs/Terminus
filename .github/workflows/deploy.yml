@@ -89,7 +89,7 @@ jobs:
           echo "Building version: $VERSION"
 
       - name: Build & Push ${{ matrix.variant }} Image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
@@ -108,7 +108,7 @@ jobs:
 
       - name: Add additional 'latest' tag for web variant
         if: matrix.variant == 'web'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
