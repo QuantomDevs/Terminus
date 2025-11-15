@@ -419,7 +419,7 @@ jobs:
 
       - name: Upload docker-compose.yml to Release
         if: steps.version_check.outputs.versionChanged == 'true'
-        uses: AButler/upload-release-assets@v2.0
+        uses: AButler/upload-release-assets@v3.0
         with:
           files: "docker-compose.yml"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -427,7 +427,7 @@ jobs:
 
       - name: Upload Dockerfile to Release
         if: steps.version_check.outputs.versionChanged == 'true'
-        uses: AButler/upload-release-assets@v2.0
+        uses: AButler/upload-release-assets@v3.0
         with:
           files: "Dockerfile"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -479,7 +479,7 @@ jobs:
       # Upload all Electron builds to release
       - name: Upload Electron Apps to Release
         if: steps.version_check.outputs.versionChanged == 'true'
-        uses: AButler/upload-release-assets@v2.0
+        uses: AButler/upload-release-assets@v3.0
         with:
           files: "artifacts/*"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
