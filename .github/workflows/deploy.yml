@@ -157,14 +157,14 @@ jobs:
           Compress-Archive -Path "release/win-unpacked/*" -DestinationPath "Terminus-Windows-Portable.zip"
 
       - name: Upload Windows Portable Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Terminus-Windows-Portable
           path: Terminus-Windows-Portable.zip
           retention-days: 90
 
       - name: Upload Windows Installer Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Terminus-Windows-Installer
           path: release/*.exe
@@ -206,21 +206,21 @@ jobs:
           cd ../..
 
       - name: Upload Linux AppImage Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Terminus-Linux-AppImage
           path: release/*.AppImage
           retention-days: 90
 
       - name: Upload Linux tar.gz Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Terminus-Linux-targz
           path: release/*.tar.gz
           retention-days: 90
 
       - name: Upload Linux Portable Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Terminus-Linux-Portable
           path: Terminus-Linux-Portable.zip
@@ -264,7 +264,7 @@ jobs:
           fi
 
       - name: Upload macOS DMG Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Terminus-macOS-DMG
           path: Terminus-macOS.dmg

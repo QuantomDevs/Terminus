@@ -44,14 +44,14 @@ jobs:
           Compress-Archive -Path "release/win-unpacked/*" -DestinationPath "Terminus-Windows-Portable.zip"
 
       - name: Upload Windows Portable Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Terminus-Windows-Portable
           path: Terminus-Windows-Portable.zip
           retention-days: 30
 
       - name: Upload Windows Installer Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Terminus-Windows-Installer
           path: release/*.exe
@@ -86,7 +86,7 @@ jobs:
           cd ../..
 
       - name: Upload Linux Portable Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Terminus-Linux-Portable
           path: Terminus-Linux-Portable.zip
