@@ -75,8 +75,6 @@ desktop.ini
 CLAUDE.md
 project-informations
 
-# GitHub workflows (if not needed for project)
-/.github/
 
 # Electron
 .webpack/
