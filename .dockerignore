@@ -51,9 +51,9 @@ repo-images/
 # Uploads directory
 uploads/
 
-# Electron files (not needed for Docker)
-electron/
-electron-builder.json
+# Electron files (not needed for backend/web variants, but required for full variant)
+# electron/
+# electron-builder.json
 
 # Development and build artifacts
 *.log
