@@ -1,40 +1,66 @@
 version: 2
 updates:
+  # Single unified update for all ecosystems
+  # Runs on the 1st of every month at 09:00 UTC
+  # Creates only ONE pull request with all dependency updates
+
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "monthly"
+      day: 1  # First day of the month
+      time: "09:00"
+    # Only 1 PR at a time
+    open-pull-requests-limit: 1
+    labels:
+      - "dependencies"
+      - "dependabot"
+      - "automerge"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
     groups:
-      dev-patch-updates:
-        dependency-type: "development"
-        update-types:
-          - "patch"
-      dev-minor-updates:
-        dependency-type: "development"
-        update-types:
-          - "minor"
-      prod-patch-updates:
-        dependency-type: "production"
-        update-types:
-          - "patch"
-      prod-minor-updates:
-        dependency-type: "production"
-        update-types:
-          - "minor"
+      # All dependencies (dev + prod + all types) in ONE group
+      all-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: "docker"
-    directory: "/docker"
+    directory: "/"
     schedule:
-      interval: "daily"
+      interval: "monthly"
+      day: 1
+      time: "09:00"
+    open-pull-requests-limit: 1
+    labels:
+      - "dependencies"
+      - "dependabot"
+      - "docker"
+      - "automerge"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
     groups:
-      patch-updates:
-        update-types:
-          - "patch"
-      minor-updates:
-        update-types:
-          - "minor"
+      docker-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
+      day: 1
+      time: "09:00"
+    open-pull-requests-limit: 1
+    labels:
+      - "dependencies"
+      - "dependabot"
+      - "github-actions"
+      - "automerge"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      actions-dependencies:
+        patterns:
+          - "*"
