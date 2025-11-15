@@ -306,11 +306,22 @@ docker buildx build \
 
 ### Desktop Applications
 
-Download the latest desktop application for your platform:
+Native desktop applications are automatically built and released for all major platforms:
 
-- **Windows**: [Terminus-Setup.exe](https://github.com/Snenjih/Terminus/releases)
-- **Linux**: [Terminus.AppImage](https://github.com/Snenjih/Terminus/releases) | [terminus.tar.gz](https://github.com/Snenjih/Terminus/releases)
-- **macOS**: Coming soon
+#### Windows
+- **[Terminus-Setup.exe](https://github.com/Snenjih/Terminus/releases/latest)** - Installer (recommended)
+- **[Terminus-Windows-Portable.zip](https://github.com/Snenjih/Terminus/releases/latest)** - Portable version (no installation)
+
+#### Linux
+- **[Terminus.AppImage](https://github.com/Snenjih/Terminus/releases/latest)** - Universal Linux app (recommended)
+- **[Terminus.tar.gz](https://github.com/Snenjih/Terminus/releases/latest)** - Archive version
+- **[Terminus-Linux-Portable.zip](https://github.com/Snenjih/Terminus/releases/latest)** - Portable version
+
+#### macOS
+- **[Terminus-macOS.dmg](https://github.com/Snenjih/Terminus/releases/latest)** - macOS installer
+- Requires macOS 10.13 or later
+
+All desktop applications are built automatically with each release using GitHub Actions and are available on the [Releases page](https://github.com/Snenjih/Terminus/releases).
 
 ### Local Development
 
