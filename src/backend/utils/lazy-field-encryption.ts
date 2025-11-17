@@ -4,6 +4,11 @@ import {
   getSensitiveFields,
   getAllSensitiveFields,
 } from "../config/sensitive-fields.js";
+import {
+  DecryptionError,
+  DecryptionErrorCode,
+  createDecryptionError,
+} from "./decryption-error.js";
 
 export class LazyFieldEncryption {
   private static readonly LEGACY_FIELD_NAME_MAP: Record<string, string> = {
@@ -68,6 +73,7 @@ export class LazyFieldEncryption {
         );
         return decrypted;
       } catch (error) {
+        // Try legacy field name as fallback
         const legacyFieldName = this.LEGACY_FIELD_NAME_MAP[fieldName];
         if (legacyFieldName) {
           try {
@@ -78,23 +84,76 @@ export class LazyFieldEncryption {
               legacyFieldName,
             );
             return decrypted;
-          } catch (legacyError) {}
+          } catch (legacyError) {
+            // Both current and legacy decryption failed
+            databaseLogger.error(
+              "Failed to decrypt field with both current and legacy field names",
+              legacyError,
+              {
+                operation: "lazy_encryption_legacy_decrypt_failed",
+                recordId,
+                fieldName,
+                legacyFieldName,
+                error:
+                  legacyError instanceof Error
+                    ? legacyError.message
+                    : "Unknown error",
+              },
+            );
+
+            // Throw specific error for legacy decryption failure
+            throw new DecryptionError(
+              `Failed to decrypt field '${fieldName}' (tried legacy name '${legacyFieldName}')`,
+              DecryptionErrorCode.LEGACY_DECRYPTION_FAILED,
+              fieldName,
+              recordId,
+              undefined,
+              legacyError instanceof Error ? legacyError : undefined,
+            );
+          }
         }
 
-        // Get all sensitive fields from centralized configuration
+        // No legacy field name available - determine if this is a sensitive field
         const allSensitiveFields = getAllSensitiveFields();
 
         if (allSensitiveFields.includes(fieldName)) {
-          return "";
+          // This is a sensitive field that failed decryption - DO NOT return empty string
+          databaseLogger.error(
+            "Failed to decrypt sensitive field - data may be corrupted",
+            error,
+            {
+              operation: "lazy_encryption_sensitive_decrypt_failed",
+              recordId,
+              fieldName,
+              error: error instanceof Error ? error.message : "Unknown error",
+            },
+          );
+
+          // Throw specific error for sensitive field decryption failure
+          throw new DecryptionError(
+            `Failed to decrypt sensitive field '${fieldName}' - data may be corrupted or encrypted with different key`,
+            DecryptionErrorCode.SENSITIVE_FIELD_DECRYPTION_FAILED,
+            fieldName,
+            recordId,
+            undefined,
+            error instanceof Error ? error : undefined,
+          );
         }
 
+        // Non-sensitive field decryption failed
         databaseLogger.error("Failed to decrypt field", error, {
           operation: "lazy_encryption_decrypt_failed",
           recordId,
           fieldName,
           error: error instanceof Error ? error.message : "Unknown error",
         });
-        throw error;
+
+        throw createDecryptionError(
+          error,
+          DecryptionErrorCode.DECRYPTION_FAILED,
+          fieldName,
+          recordId,
+        );
       }
     }
   }

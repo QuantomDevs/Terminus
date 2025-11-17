@@ -20,6 +20,7 @@ import { authLogger } from "../../utils/logger.js";
 import { AuthManager } from "../../utils/auth-manager.js";
 import { DataCrypto } from "../../utils/data-crypto.js";
 import { LazyFieldEncryption } from "../../utils/lazy-field-encryption.js";
+import { isDecryptionError } from "../../utils/decryption-error.js";
 
 const authManager = AuthManager.getInstance();
 
@@ -1551,14 +1552,60 @@ router.post("/totp/verify-login", async (req, res) => {
       });
     }
 
-    const totpSecret = LazyFieldEncryption.safeGetFieldValue(
-      userRecord.totp_secret,
-      userDataKey,
-      userRecord.id,
-      "totp_secret",
-    );
+    let totpSecret: string;
+    try {
+      totpSecret = LazyFieldEncryption.safeGetFieldValue(
+        userRecord.totp_secret,
+        userDataKey,
+        userRecord.id,
+        "totp_secret",
+      );
+    } catch (error) {
+      // Handle decryption errors for TOTP secret
+      if (isDecryptionError(error)) {
+        authLogger.error(
+          "Failed to decrypt TOTP secret - disabling TOTP for user",
+          error,
+          {
+            operation: "totp_verify_decrypt_failed",
+            userId: userRecord.id,
+            errorCode: error.code,
+            error: error.getTechnicalMessage(),
+          },
+        );
+
+        // Disable TOTP due to corrupted data
+        await db
+          .update(users)
+          .set({
+            totp_enabled: false,
+            totp_secret: null,
+            totp_backup_codes: null,
+          })
+          .where(eq(users.id, userRecord.id));
+
+        return res.status(400).json({
+          error:
+            "TOTP secret could not be decrypted - TOTP has been disabled. Please set up TOTP again.",
+          code: "TOTP_DECRYPTION_FAILED",
+        });
+      }
+
+      // Unexpected error - log and return generic error
+      authLogger.error("Unexpected error during TOTP secret decryption", error, {
+        operation: "totp_verify_unexpected_error",
+        userId: userRecord.id,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+
+      return res.status(500).json({
+        error: "An error occurred while verifying TOTP code",
+        code: "INTERNAL_ERROR",
+      });
+    }
 
     if (!totpSecret) {
+      // Empty secret (shouldn't happen with new error handling, but keep as fallback)
       await db
         .update(users)
         .set({

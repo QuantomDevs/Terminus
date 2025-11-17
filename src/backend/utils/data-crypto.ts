@@ -3,6 +3,7 @@ import { LazyFieldEncryption } from "./lazy-field-encryption.js";
 import { UserCrypto } from "./user-crypto.js";
 import { databaseLogger } from "./logger.js";
 import { getTableConfigsForReencryption } from "../config/sensitive-fields.js";
+import { isDecryptionError } from "./decryption-error.js";
 
 class DataCrypto {
   private static userCrypto: UserCrypto;
@@ -44,16 +45,81 @@ class DataCrypto {
 
     const decryptedRecord = { ...record };
     const recordId = record.id;
+    const decryptionErrors: Array<{
+      fieldName: string;
+      error: Error;
+    }> = [];
 
     for (const [fieldName, value] of Object.entries(record)) {
       if (FieldCrypto.shouldEncryptField(tableName, fieldName) && value) {
-        decryptedRecord[fieldName] = LazyFieldEncryption.safeGetFieldValue(
-          value as string,
-          userDataKey,
-          recordId,
-          fieldName,
-        );
+        try {
+          decryptedRecord[fieldName] = LazyFieldEncryption.safeGetFieldValue(
+            value as string,
+            userDataKey,
+            recordId,
+            fieldName,
+          );
+        } catch (error) {
+          // Handle decryption errors gracefully
+          if (isDecryptionError(error)) {
+            // Log the structured decryption error
+            databaseLogger.error(
+              `Decryption failed for ${tableName}.${fieldName}`,
+              error,
+              {
+                operation: "record_decrypt_field_failed",
+                userId,
+                tableName,
+                recordId,
+                fieldName,
+                errorCode: error.code,
+                error: error.getTechnicalMessage(),
+              },
+            );
+
+            // Mark field as corrupted/unavailable instead of crashing
+            decryptedRecord[fieldName] = null;
+            decryptionErrors.push({ fieldName, error });
+          } else {
+            // Unexpected error type - log and re-throw
+            databaseLogger.error(
+              `Unexpected error during decryption of ${tableName}.${fieldName}`,
+              error,
+              {
+                operation: "record_decrypt_unexpected_error",
+                userId,
+                tableName,
+                recordId,
+                fieldName,
+                error: error instanceof Error ? error.message : "Unknown error",
+              },
+            );
+            throw error;
+          }
+        }
       }
+    }
+
+    // If there were decryption errors, add metadata to the record
+    if (decryptionErrors.length > 0) {
+      decryptedRecord._decryptionErrors = decryptionErrors.map((e) => ({
+        fieldName: e.fieldName,
+        errorCode: isDecryptionError(e.error) ? e.error.code : "UNKNOWN",
+        message: isDecryptionError(e.error)
+          ? e.error.getUserMessage()
+          : e.error.message,
+      }));
+
+      databaseLogger.warn(
+        `Record ${recordId} in ${tableName} has ${decryptionErrors.length} field(s) with decryption errors`,
+        {
+          operation: "record_decrypt_partial_success",
+          userId,
+          tableName,
+          recordId,
+          failedFields: decryptionErrors.map((e) => e.fieldName),
+        },
+      );
     }
 
     return decryptedRecord;
