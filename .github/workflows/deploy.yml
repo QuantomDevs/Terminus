@@ -436,42 +436,42 @@ jobs:
       # Download all Electron build artifacts
       - name: Download Windows Portable
         if: steps.version_check.outputs.versionChanged == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: Terminus-Windows-Portable
           path: ./artifacts
 
       - name: Download Windows Installer
         if: steps.version_check.outputs.versionChanged == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: Terminus-Windows-Installer
           path: ./artifacts
 
       - name: Download Linux AppImage
         if: steps.version_check.outputs.versionChanged == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: Terminus-Linux-AppImage
           path: ./artifacts
 
       - name: Download Linux tar.gz
         if: steps.version_check.outputs.versionChanged == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: Terminus-Linux-targz
           path: ./artifacts
 
       - name: Download Linux Portable
         if: steps.version_check.outputs.versionChanged == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: Terminus-Linux-Portable
           path: ./artifacts
 
       - name: Download macOS DMG
         if: steps.version_check.outputs.versionChanged == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: Terminus-macOS-DMG
           path: ./artifacts
