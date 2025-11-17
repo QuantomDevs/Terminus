@@ -12,6 +12,8 @@ import { emitProgressEvent } from "./transfer-progress.js";
 import * as tempFileManager from "../local/temp-file-manager.js";
 import * as editorLauncher from "../local/editor-launcher.js";
 import { emitExternalEditorEvent } from "./external-editor-ws.js";
+import { findAvailablePort } from "../utils/port-utils.js";
+import { portRegistry, SERVICE_NAMES } from "../utils/port-registry.js";
 
 function isExecutableFile(permissions: string, fileName: string): boolean {
   const hasExecutePermission =
@@ -2849,28 +2851,39 @@ process.on("SIGTERM", () => {
   process.exit(0);
 });
 
-const PORT = 30004;
+// Start the SSH File Manager server when this module is imported
+(async () => {
+  try {
+    const preferredPort = 30004;
+    const PORT = await findAvailablePort(preferredPort);
 
-try {
-  const server = app.listen(PORT, async () => {
-    try {
-      await authManager.initialize();
-    } catch (err) {
-      fileLogger.error("Failed to initialize AuthManager", err, {
-        operation: "auth_init_error",
+    const server = app.listen(PORT, async () => {
+      // Register the port in the central registry
+      portRegistry.setPort(SERVICE_NAMES.SSH_FILE_MANAGER, PORT);
+
+      fileLogger.info(`SSH File Manager server started on port ${PORT}`, {
+        operation: "file_manager_server_started",
+        port: PORT,
       });
-    }
-  });
 
-  server.on("error", (err) => {
-    fileLogger.error("File Manager server error", err, {
-      operation: "file_manager_server_error",
-      port: PORT,
+      try {
+        await authManager.initialize();
+      } catch (err) {
+        fileLogger.error("Failed to initialize AuthManager", err, {
+          operation: "auth_init_error",
+        });
+      }
     });
-  });
-} catch (err) {
-  fileLogger.error("Failed to start File Manager server", err, {
-    operation: "file_manager_server_start_failed",
-    port: PORT,
-  });
-}
+
+    server.on("error", (err) => {
+      fileLogger.error("File Manager server error", err, {
+        operation: "file_manager_server_error",
+        port: PORT,
+      });
+    });
+  } catch (err) {
+    fileLogger.error("Failed to start File Manager server", err, {
+      operation: "file_manager_server_start_failed",
+    });
+  }
+})();

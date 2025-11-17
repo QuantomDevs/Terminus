@@ -1,6 +1,8 @@
 import { WebSocket, WebSocketServer } from "ws";
 import { systemLogger } from "../utils/logger.js";
 import * as tempFileManager from "../local/temp-file-manager.js";
+import { findAvailablePort } from "../utils/port-utils.js";
+import { portRegistry, SERVICE_NAMES } from "../utils/port-registry.js";
 
 let wss: WebSocketServer | null = null;
 const clients: Set<WebSocket> = new Set();
@@ -15,14 +17,18 @@ export interface ExternalEditorEvent {
   content?: string;
 }
 
-export function startExternalEditorServer() {
+export async function startExternalEditorServer() {
   if (wss) {
     systemLogger.info("External editor WebSocket server is already running.");
     return;
   }
 
-  const port = 30005;
+  const preferredPort = 30005;
+  const port = await findAvailablePort(preferredPort);
   wss = new WebSocketServer({ port });
+
+  // Register the port in the central registry
+  portRegistry.setPort(SERVICE_NAMES.EXTERNAL_EDITOR, port);
 
   systemLogger.info(`External editor WebSocket server started on port ${port}`, {
     operation: "external_editor_server_started",
@@ -146,4 +152,12 @@ export async function shutdownExternalEditorServer() {
 }
 
 // Start the server automatically when this module is imported
-startExternalEditorServer();
+(async () => {
+  try {
+    await startExternalEditorServer();
+  } catch (error) {
+    systemLogger.error("Failed to start external editor server", error, {
+      operation: "startup_error",
+    });
+  }
+})();

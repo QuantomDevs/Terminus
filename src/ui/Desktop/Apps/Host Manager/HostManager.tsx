@@ -53,20 +53,21 @@ export function HostManager({
     }
   };
 
-  const topMarginPx = isTopbarOpen ? 74 : 26;
-  const leftMarginPx = 26;
-  const bottomMarginPx = 8;
+  const topMarginPx = 38;
+  const leftMarginPx = 0;
+  const bottomMarginPx = 0;
 
   return (
     <div>
       <div className="w-full">
         <div
-          className="bg-dark-bg text-white p-4 pt-0 rounded-lg border-2 border-dark-border flex flex-col min-h-0 overflow-hidden"
+          className="bg-dark-bg text-white p-4 pt-0 flex flex-col min-h-0 overflow-hidden"
           style={{
             marginLeft: leftMarginPx,
-            marginRight: 17,
+            marginRight: leftMarginPx,
             marginTop: topMarginPx,
             marginBottom: bottomMarginPx,
+            padding: 16,
             height: `calc(100vh - ${topMarginPx + bottomMarginPx}px)`,
           }}
         >

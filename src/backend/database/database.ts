@@ -22,6 +22,8 @@ import { DatabaseFileEncryption } from "../utils/database-file-encryption.js";
 import { DatabaseMigration } from "../utils/database-migration.js";
 import { UserDataExport } from "../utils/user-data-export.js";
 import { AutoSSLSetup } from "../utils/auto-ssl-setup.js";
+import { findAvailablePort } from "../utils/port-utils.js";
+import { portRegistry, SERVICE_NAMES } from "../utils/port-registry.js";
 import { eq, and } from "drizzle-orm";
 import {
   users,
@@ -1514,7 +1516,6 @@ app.use(
   },
 );
 
-const HTTP_PORT = 30001;
 const HTTPS_PORT = process.env.SSL_PORT || 8443;
 
 async function initializeSecurity() {
@@ -1660,20 +1661,40 @@ app.get(
   },
 );
 
-app.listen(HTTP_PORT, async () => {
-  const uploadsDir = path.join(process.cwd(), "uploads");
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
+// Start the main database/API server when this module is imported
+(async () => {
+  try {
+    const preferredPort = 30001;
+    const HTTP_PORT = await findAvailablePort(preferredPort);
+
+    app.listen(HTTP_PORT, async () => {
+      // Register the port in the central registry
+      portRegistry.setPort(SERVICE_NAMES.MAIN_API, HTTP_PORT);
+
+      databaseLogger.info(`Main Database/API server started on port ${HTTP_PORT}`, {
+        operation: "database_server_started",
+        port: HTTP_PORT,
+      });
+
+      const uploadsDir = path.join(process.cwd(), "uploads");
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+
+      await initializeSecurity();
+    });
+
+    const sslConfig = AutoSSLSetup.getSSLConfig();
+    if (sslConfig.enabled) {
+      databaseLogger.info(`SSL is enabled`, {
+        operation: "ssl_info",
+        nginx_https_port: sslConfig.port,
+        backend_http_port: HTTP_PORT,
+      });
+    }
+  } catch (err) {
+    databaseLogger.error("Failed to start main database/API server", err, {
+      operation: "database_server_start_failed",
+    });
   }
-
-  await initializeSecurity();
-});
-
-const sslConfig = AutoSSLSetup.getSSLConfig();
-if (sslConfig.enabled) {
-  databaseLogger.info(`SSL is enabled`, {
-    operation: "ssl_info",
-    nginx_https_port: sslConfig.port,
-    backend_http_port: HTTP_PORT,
-  });
-}
+})();

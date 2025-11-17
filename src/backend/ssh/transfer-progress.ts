@@ -1,5 +1,7 @@
 import { WebSocket, WebSocketServer } from "ws";
 import { systemLogger } from "../utils/logger.js";
+import { findAvailablePort } from "../utils/port-utils.js";
+import { portRegistry, SERVICE_NAMES } from "../utils/port-registry.js";
 
 let wss: WebSocketServer | null = null;
 const clients: Set<WebSocket> = new Set();
@@ -13,15 +15,19 @@ export interface ProgressEvent {
   error?: string;
 }
 
-export function startTransferProgressServer() {
+export async function startTransferProgressServer() {
   if (wss) {
     systemLogger.info("Transfer progress WebSocket server is already running.");
     return;
   }
 
   // Changed from 30005 to 30007 to resolve port conflict with server-stats.ts
-  const port = 30007;
+  const preferredPort = 30007;
+  const port = await findAvailablePort(preferredPort);
   wss = new WebSocketServer({ port });
+
+  // Register the port in the central registry
+  portRegistry.setPort(SERVICE_NAMES.TRANSFER_PROGRESS, port);
 
   systemLogger.info(`Transfer progress WebSocket server started on port ${port}`, {
     operation: "transfer_progress_server_started",
@@ -131,4 +137,12 @@ export async function shutdownTransferProgressServer() {
 }
 
 // Start the server when this module is imported
-startTransferProgressServer();
+(async () => {
+  try {
+    await startTransferProgressServer();
+  } catch (error) {
+    systemLogger.error("Failed to start transfer progress server", error, {
+      operation: "startup_error",
+    });
+  }
+})();

@@ -115,7 +115,7 @@ import { systemLogger, versionLogger } from "./utils/logger.js";
       systemLogger.info("Starting local terminal server...", {
         operation: "start_local_terminal",
       });
-      localPtyModule.startLocalTerminalServer();
+      await localPtyModule.startLocalTerminalServer();
     }
 
     // Graceful shutdown handler

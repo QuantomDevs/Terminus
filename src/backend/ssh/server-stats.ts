@@ -9,6 +9,8 @@ import { eq, and } from "drizzle-orm";
 import { statsLogger } from "../utils/logger.js";
 import { SimpleDBOps } from "../utils/simple-db-ops.js";
 import { AuthManager } from "../utils/auth-manager.js";
+import { findAvailablePort } from "../utils/port-utils.js";
+import { portRegistry, SERVICE_NAMES } from "../utils/port-registry.js";
 
 interface PooledConnection {
   client: Client;
@@ -1014,13 +1016,32 @@ process.on("SIGTERM", () => {
   process.exit(0);
 });
 
-const PORT = 30005;
-app.listen(PORT, async () => {
+// Start the Server Stats server when this module is imported
+(async () => {
   try {
-    await authManager.initialize();
+    const preferredPort = 30005;
+    const PORT = await findAvailablePort(preferredPort);
+
+    app.listen(PORT, async () => {
+      // Register the port in the central registry
+      portRegistry.setPort(SERVICE_NAMES.SERVER_STATS, PORT);
+
+      statsLogger.info(`Server Stats server started on port ${PORT}`, {
+        operation: "server_stats_server_started",
+        port: PORT,
+      });
+
+      try {
+        await authManager.initialize();
+      } catch (err) {
+        statsLogger.error("Failed to initialize AuthManager", err, {
+          operation: "auth_init_error",
+        });
+      }
+    });
   } catch (err) {
-    statsLogger.error("Failed to initialize AuthManager", err, {
-      operation: "auth_init_error",
+    statsLogger.error("Failed to start Server Stats server", err, {
+      operation: "server_stats_server_start_failed",
     });
   }
-});
+})();

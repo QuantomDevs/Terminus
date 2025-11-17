@@ -8,14 +8,27 @@ import { sshLogger } from "../utils/logger.js";
 import { SimpleDBOps } from "../utils/simple-db-ops.js";
 import { AuthManager } from "../utils/auth-manager.js";
 import { UserCrypto } from "../utils/user-crypto.js";
+import { findAvailablePort } from "../utils/port-utils.js";
+import { portRegistry, SERVICE_NAMES } from "../utils/port-registry.js";
 
 const authManager = AuthManager.getInstance();
 const userCrypto = UserCrypto.getInstance();
 
 const userConnections = new Map<string, Set<WebSocket>>();
 
-const wss = new WebSocketServer({
-  port: 30002,
+let wss: WebSocketServer | null = null;
+
+async function startSSHTerminalServer() {
+  if (wss) {
+    sshLogger.info("SSH Terminal WebSocket server is already running.");
+    return;
+  }
+
+  const preferredPort = 30002;
+  const port = await findAvailablePort(preferredPort);
+
+  wss = new WebSocketServer({
+    port,
   verifyClient: async (info) => {
     try {
       const url = parseUrl(info.req.url!, true);
@@ -75,7 +88,15 @@ const wss = new WebSocketServer({
       return false;
     }
   },
-});
+  });
+
+  // Register the port in the central registry
+  portRegistry.setPort(SERVICE_NAMES.SSH_TERMINAL, port);
+
+  sshLogger.info(`SSH Terminal WebSocket server started on port ${port}`, {
+    operation: "ssh_terminal_server_started",
+    port,
+  });
 
 wss.on("connection", async (ws: WebSocket, req) => {
   let userId: string | undefined;
@@ -731,3 +752,15 @@ wss.on("connection", async (ws: WebSocket, req) => {
     }, 60000);
   }
 });
+}
+
+// Start the SSH terminal server when this module is imported
+(async () => {
+  try {
+    await startSSHTerminalServer();
+  } catch (error) {
+    sshLogger.error("Failed to start SSH terminal server", error, {
+      operation: "startup_error",
+    });
+  }
+})();

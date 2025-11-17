@@ -19,6 +19,8 @@ import { tunnelLogger } from "../utils/logger.js";
 import { SystemCrypto } from "../utils/system-crypto.js";
 import { SimpleDBOps } from "../utils/simple-db-ops.js";
 import { DataCrypto } from "../utils/data-crypto.js";
+import { findAvailablePort } from "../utils/port-utils.js";
+import { portRegistry, SERVICE_NAMES } from "../utils/port-registry.js";
 
 const app = express();
 app.use(
@@ -1341,8 +1343,11 @@ async function initializeAutoStartTunnels(): Promise<void> {
     const systemCrypto = SystemCrypto.getInstance();
     const internalAuthToken = await systemCrypto.getInternalAuthToken();
 
+    // Get the Main API port from the registry (fallback to 30001 if not yet registered)
+    const mainApiPort = portRegistry.getPortWithFallback(SERVICE_NAMES.MAIN_API, 30001);
+
     const autostartResponse = await axios.get(
-      "http://localhost:30001/ssh/db/host/internal",
+      `http://localhost:${mainApiPort}/ssh/db/host/internal`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -1352,7 +1357,7 @@ async function initializeAutoStartTunnels(): Promise<void> {
     );
 
     const allHostsResponse = await axios.get(
-      "http://localhost:30001/ssh/db/host/internal/all",
+      `http://localhost:${mainApiPort}/ssh/db/host/internal/all`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -1461,9 +1466,28 @@ async function initializeAutoStartTunnels(): Promise<void> {
   }
 }
 
-const PORT = 30003;
-app.listen(PORT, () => {
-  setTimeout(() => {
-    initializeAutoStartTunnels();
-  }, 2000);
-});
+// Start the SSH tunnel management server when this module is imported
+(async () => {
+  try {
+    const preferredPort = 30003;
+    const PORT = await findAvailablePort(preferredPort);
+
+    app.listen(PORT, () => {
+      // Register the port in the central registry
+      portRegistry.setPort(SERVICE_NAMES.SSH_TUNNEL, PORT);
+
+      tunnelLogger.info(`SSH Tunnel Management server started on port ${PORT}`, {
+        operation: "tunnel_server_started",
+        port: PORT,
+      });
+
+      setTimeout(() => {
+        initializeAutoStartTunnels();
+      }, 2000);
+    });
+  } catch (error) {
+    tunnelLogger.error("Failed to start SSH tunnel management server", error, {
+      operation: "startup_error",
+    });
+  }
+})();

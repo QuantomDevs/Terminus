@@ -5,6 +5,8 @@ import { parse as parseUrl } from "url";
 import { systemLogger } from "../utils/logger.js";
 import { AuthManager } from "../utils/auth-manager.js";
 import { UserCrypto } from "../utils/user-crypto.js";
+import { findAvailablePort } from "../utils/port-utils.js";
+import { portRegistry, SERVICE_NAMES } from "../utils/port-registry.js";
 
 const authManager = AuthManager.getInstance();
 const userCrypto = UserCrypto.getInstance();
@@ -15,7 +17,7 @@ let wss: WebSocketServer | null = null;
 const userSessions = new Map<string, Set<WebSocket>>();
 const MAX_SESSIONS_PER_USER = 10;
 
-export function startLocalTerminalServer() {
+export async function startLocalTerminalServer() {
   if (wss) {
     systemLogger.info("Local terminal WebSocket server is already running.", {
       operation: "local_terminal_server_start",
@@ -24,9 +26,13 @@ export function startLocalTerminalServer() {
     return;
   }
 
-  const port = 30003;
+  const preferredPort = 30003;
+  let port: number;
 
   try {
+    // Find an available port starting from the preferred port
+    port = await findAvailablePort(preferredPort);
+
     wss = new WebSocketServer({
       port,
       verifyClient: async (info) => {
@@ -561,6 +567,9 @@ export function startLocalTerminalServer() {
         },
       );
     });
+
+    // Register the port in the central registry
+    portRegistry.setPort(SERVICE_NAMES.LOCAL_TERMINAL, port);
 
     systemLogger.info(`Local terminal WebSocket server started on port ${port}`, {
       operation: "local_terminal_server_started",

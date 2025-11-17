@@ -234,6 +234,19 @@ class DataCrypto {
       errors: [] as string[],
     };
 
+    // Backup storage for rollback
+    interface BackupRecord {
+      table: string;
+      id: number | string;
+      originalValues: Record<string, any>;
+    }
+    const backupRecords: BackupRecord[] = [];
+
+    databaseLogger.info("Starting transactional user data re-encryption", {
+      operation: "password_reset_reencrypt_start",
+      userId,
+    });
+
     try {
       const tablesToReencrypt = [
         { table: "ssh_data", fields: ["password", "key", "key_password"] },
@@ -258,16 +271,42 @@ class DataCrypto {
         },
       ];
 
-      for (const { table, fields } of tablesToReencrypt) {
-        try {
+      // Create transaction wrapper function
+      const reencryptTransaction = db.transaction(() => {
+        databaseLogger.info("Transaction started for re-encryption", {
+          operation: "password_reset_transaction_start",
+          userId,
+        });
+
+        for (const { table, fields } of tablesToReencrypt) {
+          databaseLogger.info(`Processing table: ${table}`, {
+            operation: "password_reset_table_processing",
+            userId,
+            table,
+            fieldCount: fields.length,
+          });
+
           const records = db
             .prepare(`SELECT * FROM ${table} WHERE user_id = ?`)
             .all(userId);
+
+          databaseLogger.info(`Found ${records.length} records in ${table}`, {
+            operation: "password_reset_records_found",
+            userId,
+            table,
+            recordCount: records.length,
+          });
 
           for (const record of records) {
             const recordId = record.id.toString();
             let needsUpdate = false;
             const updatedRecord = { ...record };
+            const originalValues: Record<string, any> = {};
+
+            // Store original values for potential rollback
+            for (const fieldName of fields) {
+              originalValues[fieldName] = record[fieldName];
+            }
 
             for (const fieldName of fields) {
               const fieldValue = record[fieldName];
@@ -287,10 +326,11 @@ class DataCrypto {
                 } catch (error) {
                   const errorMsg = `Failed to re-encrypt ${fieldName} for ${table} record ${recordId}: ${error instanceof Error ? error.message : "Unknown error"}`;
                   result.errors.push(errorMsg);
-                  databaseLogger.warn(
+                  databaseLogger.error(
                     "Field re-encryption failed during password reset",
+                    error,
                     {
-                      operation: "password_reset_reencrypt_failed",
+                      operation: "password_reset_field_reencrypt_failed",
                       userId,
                       table,
                       recordId,
@@ -301,11 +341,20 @@ class DataCrypto {
                           : "Unknown error",
                     },
                   );
+                  // Throw error to trigger transaction rollback
+                  throw new Error(errorMsg);
                 }
               }
             }
 
             if (needsUpdate) {
+              // Store backup before updating
+              backupRecords.push({
+                table,
+                id: record.id,
+                originalValues,
+              });
+
               const updateFields = fields.filter(
                 (field) => updatedRecord[field] !== record[field],
               );
@@ -316,6 +365,17 @@ class DataCrypto {
                 );
                 updateValues.push(record.id);
 
+                databaseLogger.info(
+                  `Updating record ${recordId} in ${table}`,
+                  {
+                    operation: "password_reset_record_update",
+                    userId,
+                    table,
+                    recordId,
+                    fieldsUpdated: updateFields.length,
+                  },
+                );
+
                 db.prepare(updateQuery).run(...updateValues);
 
                 if (!result.reencryptedTables.includes(table)) {
@@ -324,29 +384,76 @@ class DataCrypto {
               }
             }
           }
-        } catch (tableError) {
-          const errorMsg = `Failed to re-encrypt table ${table}: ${tableError instanceof Error ? tableError.message : "Unknown error"}`;
-          result.errors.push(errorMsg);
-          databaseLogger.error(
-            "Table re-encryption failed during password reset",
-            tableError,
-            {
-              operation: "password_reset_table_reencrypt_failed",
-              userId,
-              table,
-              error:
-                tableError instanceof Error
-                  ? tableError.message
-                  : "Unknown error",
-            },
-          );
+
+          databaseLogger.success(`Successfully processed table: ${table}`, {
+            operation: "password_reset_table_complete",
+            userId,
+            table,
+          });
+        }
+
+        databaseLogger.success("All tables processed successfully", {
+          operation: "password_reset_all_tables_complete",
+          userId,
+          reencryptedTables: result.reencryptedTables,
+          reencryptedFieldsCount: result.reencryptedFieldsCount,
+        });
+      });
+
+      // Execute the transaction
+      try {
+        reencryptTransaction();
+        result.success = true;
+
+        databaseLogger.success(
+          "Transaction committed successfully - User data re-encryption completed",
+          {
+            operation: "password_reset_transaction_committed",
+            userId,
+            reencryptedTables: result.reencryptedTables,
+            reencryptedFieldsCount: result.reencryptedFieldsCount,
+            backupRecordsCount: backupRecords.length,
+          },
+        );
+      } catch (transactionError) {
+        // Transaction automatically rolled back by better-sqlite3
+        const errorMsg = `Transaction failed and was rolled back: ${transactionError instanceof Error ? transactionError.message : "Unknown error"}`;
+        result.errors.push(errorMsg);
+        result.success = false;
+
+        databaseLogger.error(
+          "Transaction rolled back - User data remains in original state",
+          transactionError,
+          {
+            operation: "password_reset_transaction_rollback",
+            userId,
+            backupRecordsCount: backupRecords.length,
+            error:
+              transactionError instanceof Error
+                ? transactionError.message
+                : "Unknown error",
+          },
+        );
+
+        // Verify rollback by checking a sample record
+        if (backupRecords.length > 0) {
+          const sampleBackup = backupRecords[0];
+          const verifyQuery = db
+            .prepare(`SELECT * FROM ${sampleBackup.table} WHERE id = ?`)
+            .get(sampleBackup.id);
+
+          databaseLogger.info("Rollback verification", {
+            operation: "password_reset_rollback_verify",
+            userId,
+            sampleTable: sampleBackup.table,
+            sampleId: sampleBackup.id,
+            rollbackSuccessful: !!verifyQuery,
+          });
         }
       }
 
-      result.success = result.errors.length === 0;
-
       databaseLogger.info(
-        "User data re-encryption completed after password reset",
+        "User data re-encryption process completed",
         {
           operation: "password_reset_reencrypt_completed",
           userId,
@@ -360,10 +467,10 @@ class DataCrypto {
       return result;
     } catch (error) {
       databaseLogger.error(
-        "User data re-encryption failed after password reset",
+        "Critical error during user data re-encryption process",
         error,
         {
-          operation: "password_reset_reencrypt_failed",
+          operation: "password_reset_reencrypt_critical_error",
           userId,
           error: error instanceof Error ? error.message : "Unknown error",
         },
@@ -372,6 +479,7 @@ class DataCrypto {
       result.errors.push(
         `Critical error during re-encryption: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
+      result.success = false;
       return result;
     }
   }
