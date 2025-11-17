@@ -2,6 +2,7 @@ import { FieldCrypto } from "./field-crypto.js";
 import { LazyFieldEncryption } from "./lazy-field-encryption.js";
 import { UserCrypto } from "./user-crypto.js";
 import { databaseLogger } from "./logger.js";
+import { getTableConfigsForReencryption } from "../config/sensitive-fields.js";
 
 class DataCrypto {
   private static userCrypto: UserCrypto;
@@ -248,28 +249,8 @@ class DataCrypto {
     });
 
     try {
-      const tablesToReencrypt = [
-        { table: "ssh_data", fields: ["password", "key", "key_password"] },
-        {
-          table: "ssh_credentials",
-          fields: [
-            "password",
-            "private_key",
-            "key_password",
-            "key",
-            "public_key",
-          ],
-        },
-        {
-          table: "users",
-          fields: [
-            "client_secret",
-            "totp_secret",
-            "totp_backup_codes",
-            "oidc_identifier",
-          ],
-        },
-      ];
+      // Use centralized configuration instead of hardcoded values
+      const tablesToReencrypt = getTableConfigsForReencryption();
 
       // Create transaction wrapper function
       const reencryptTransaction = db.transaction(() => {

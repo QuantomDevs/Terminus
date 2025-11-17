@@ -1016,32 +1016,41 @@ process.on("SIGTERM", () => {
   process.exit(0);
 });
 
-// Start the Server Stats server when this module is imported
-(async () => {
+// Export function to start the Server Stats server
+export async function startServerStatsServer(): Promise<void> {
   try {
     const preferredPort = 30005;
     const PORT = await findAvailablePort(preferredPort);
 
-    app.listen(PORT, async () => {
-      // Register the port in the central registry
-      portRegistry.setPort(SERVICE_NAMES.SERVER_STATS, PORT);
+    return new Promise((resolve, reject) => {
+      app.listen(PORT, async () => {
+        try {
+          // Register the port in the central registry
+          portRegistry.setPort(SERVICE_NAMES.SERVER_STATS, PORT);
 
-      statsLogger.info(`Server Stats server started on port ${PORT}`, {
-        operation: "server_stats_server_started",
-        port: PORT,
+          statsLogger.info(`Server Stats server started on port ${PORT}`, {
+            operation: "server_stats_server_started",
+            port: PORT,
+          });
+
+          try {
+            await authManager.initialize();
+          } catch (err) {
+            statsLogger.error("Failed to initialize AuthManager", err, {
+              operation: "auth_init_error",
+            });
+          }
+
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
       });
-
-      try {
-        await authManager.initialize();
-      } catch (err) {
-        statsLogger.error("Failed to initialize AuthManager", err, {
-          operation: "auth_init_error",
-        });
-      }
     });
   } catch (err) {
     statsLogger.error("Failed to start Server Stats server", err, {
       operation: "server_stats_server_start_failed",
     });
+    throw err;
   }
-})();
+}

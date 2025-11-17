@@ -1,5 +1,9 @@
 import { FieldCrypto } from "./field-crypto.js";
 import { databaseLogger } from "./logger.js";
+import {
+  getSensitiveFields,
+  getAllSensitiveFields,
+} from "../config/sensitive-fields.js";
 
 export class LazyFieldEncryption {
   private static readonly LEGACY_FIELD_NAME_MAP: Record<string, string> = {
@@ -77,19 +81,10 @@ export class LazyFieldEncryption {
           } catch (legacyError) {}
         }
 
-        const sensitiveFields = [
-          "totp_secret",
-          "totp_backup_codes",
-          "password",
-          "key",
-          "key_password",
-          "private_key",
-          "public_key",
-          "client_secret",
-          "oidc_identifier",
-        ];
+        // Get all sensitive fields from centralized configuration
+        const allSensitiveFields = getAllSensitiveFields();
 
-        if (sensitiveFields.includes(fieldName)) {
+        if (allSensitiveFields.includes(fieldName)) {
           return "";
         }
 
@@ -223,19 +218,8 @@ export class LazyFieldEncryption {
   }
 
   static getSensitiveFieldsForTable(tableName: string): string[] {
-    const sensitiveFieldsMap: Record<string, string[]> = {
-      ssh_data: ["password", "key", "key_password"],
-      ssh_credentials: [
-        "password",
-        "key",
-        "key_password",
-        "private_key",
-        "public_key",
-      ],
-      users: ["totp_secret", "totp_backup_codes"],
-    };
-
-    return sensitiveFieldsMap[tableName] || [];
+    // Use centralized configuration instead of hardcoded values
+    return getSensitiveFields(tableName);
   }
 
   static fieldNeedsMigration(

@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { getSensitiveFieldsMap } from "../config/sensitive-fields.js";
 
 interface EncryptedData {
   data: string;
@@ -14,23 +15,8 @@ class FieldCrypto {
   private static readonly IV_LENGTH = 16;
   private static readonly SALT_LENGTH = 32;
 
-  private static readonly ENCRYPTED_FIELDS = {
-    users: new Set([
-      "password_hash",
-      "client_secret",
-      "totp_secret",
-      "totp_backup_codes",
-      "oidc_identifier",
-    ]),
-    ssh_data: new Set(["password", "key", "key_password"]),
-    ssh_credentials: new Set([
-      "password",
-      "private_key",
-      "key_password",
-      "key",
-      "public_key",
-    ]),
-  };
+  // Cache the sensitive fields map for performance
+  private static readonly ENCRYPTED_FIELDS = getSensitiveFieldsMap();
 
   static encryptField(
     plaintext: string,
@@ -99,8 +85,7 @@ class FieldCrypto {
   }
 
   static shouldEncryptField(tableName: string, fieldName: string): boolean {
-    const fields =
-      this.ENCRYPTED_FIELDS[tableName as keyof typeof this.ENCRYPTED_FIELDS];
+    const fields = this.ENCRYPTED_FIELDS.get(tableName);
     return fields ? fields.has(fieldName) : false;
   }
 }

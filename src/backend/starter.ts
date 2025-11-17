@@ -101,10 +101,16 @@ import { systemLogger, versionLogger } from "./utils/logger.js";
     await import("./ssh/terminal.js");
     await import("./ssh/tunnel.js");
     await import("./ssh/file-manager.js");
-    await import("./ssh/server-stats.js");
     const localPtyModule = await import("./terminal/local-pty-manager.js");
     const transferProgressModule = await import("./ssh/transfer-progress.js");
     const externalEditorWsModule = await import("./ssh/external-editor-ws.js");
+
+    // Import and start server stats server
+    const serverStatsModule = await import("./ssh/server-stats.js");
+    systemLogger.info("Starting server stats server...", {
+      operation: "start_server_stats",
+    });
+    await serverStatsModule.startServerStatsServer();
 
     // Import and start local file manager server
     const localFileModule = await import("./local/local-file-manager.js");
