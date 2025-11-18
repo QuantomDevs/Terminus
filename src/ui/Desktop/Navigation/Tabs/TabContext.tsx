@@ -45,12 +45,10 @@ interface TabProviderProps {
 
 export function TabProvider({ children }: TabProviderProps) {
   const { t } = useTranslation();
-  const [tabs, setTabs] = useState<Tab[]>([
-    { id: 1, type: "ssh_manager", title: t("nav.hostManager") },
-  ]);
-  const [currentTab, setCurrentTab] = useState<number>(1);
+  const [tabs, setTabs] = useState<Tab[]>([]);
+  const [currentTab, setCurrentTab] = useState<number | null>(null);
   const [allSplitScreenTab, setAllSplitScreenTab] = useState<number[]>([]);
-  const nextTabId = useRef(2);
+  const nextTabId = useRef(1);
   const [sessionRestored, setSessionRestored] = useState(false);
 
   function computeUniqueTitle(
@@ -123,11 +121,6 @@ export function TabProvider({ children }: TabProviderProps) {
   const removeTab = (tabId: number) => {
     const tab = tabs.find((t) => t.id === tabId);
 
-    // Prevent closing ssh_manager tab if it's the only tab
-    if (tab?.type === "ssh_manager" && tabs.length === 1) {
-      return;
-    }
-
     if (
       tab &&
       tab.terminalRef?.current &&
@@ -144,8 +137,8 @@ export function TabProvider({ children }: TabProviderProps) {
       if (remainingTabs.length > 0) {
         setCurrentTab(remainingTabs[0].id);
       } else {
-        // If no tabs remain, ensure we have the ssh_manager tab
-        setCurrentTab(1);
+        // If no tabs remain, set currentTab to null to show HostManager
+        setCurrentTab(null);
       }
     }
   };
@@ -211,17 +204,11 @@ export function TabProvider({ children }: TabProviderProps) {
         const sessionData = await getSessionState();
 
         if (sessionData && sessionData.sessionData && sessionData.sessionData.length > 0) {
-          // Filter out ssh_manager tab from restored tabs (we already have it)
-          const restoredTabs = sessionData.sessionData.filter(
-            (tab: any) => tab.type !== "ssh_manager"
-          );
+          const restoredTabs = sessionData.sessionData;
 
           if (restoredTabs.length > 0) {
             // Find max ID to set nextTabId correctly
-            const maxId = Math.max(
-              1,
-              ...restoredTabs.map((tab: any) => tab.id)
-            );
+            const maxId = Math.max(...restoredTabs.map((tab: any) => tab.id));
             nextTabId.current = maxId + 1;
 
             // Restore tabs with terminalRef for terminal/local_terminal types
@@ -233,10 +220,7 @@ export function TabProvider({ children }: TabProviderProps) {
                   : undefined,
             }));
 
-            setTabs([
-              { id: 1, type: "ssh_manager", title: t("nav.hostManager") },
-              ...tabsWithRefs,
-            ]);
+            setTabs(tabsWithRefs);
 
             // Set the first restored tab as current if available
             if (tabsWithRefs.length > 0) {
@@ -299,13 +283,11 @@ export function TabProvider({ children }: TabProviderProps) {
           return;
         }
 
-        // Serialize tabs, excluding terminalRef and ssh_manager tab
-        const serializableTabs = tabs
-          .filter((tab) => tab.type !== "ssh_manager")
-          .map((tab) => {
-            const { terminalRef, ...rest } = tab;
-            return rest;
-          });
+        // Serialize tabs, excluding terminalRef
+        const serializableTabs = tabs.map((tab) => {
+          const { terminalRef, ...rest } = tab;
+          return rest;
+        });
 
         // Only save if we have tabs to save
         if (serializableTabs.length > 0) {
@@ -336,13 +318,11 @@ export function TabProvider({ children }: TabProviderProps) {
           return;
         }
 
-        // Serialize tabs, excluding terminalRef and ssh_manager tab
-        const serializableTabs = tabs
-          .filter((tab) => tab.type !== "ssh_manager")
-          .map((tab) => {
-            const { terminalRef, ...rest } = tab;
-            return rest;
-          });
+        // Serialize tabs, excluding terminalRef
+        const serializableTabs = tabs.map((tab) => {
+          const { terminalRef, ...rest } = tab;
+          return rest;
+        });
 
         // Use synchronous storage for beforeunload to ensure it completes
         if (serializableTabs.length > 0) {

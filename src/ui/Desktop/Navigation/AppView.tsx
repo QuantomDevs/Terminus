@@ -542,7 +542,30 @@ export function AppView({
   const isFileManager = currentTabData?.type === "file_manager";
   const isSplitScreen = allSplitScreenTab.length > 0;
 
-  const topMarginPx = isTopbarOpen ? 38 : 0;
+  // Verwende CSS-Variable für dynamische Tab-Bar-Höhe
+  const [tabBarHeightPx, setTabBarHeightPx] = useState(38);
+
+  useEffect(() => {
+    const updateTabBarHeight = () => {
+      const height = getComputedStyle(document.documentElement)
+        .getPropertyValue("--tab-bar-height-px")
+        .trim();
+      const heightNum = parseInt(height) || 38;
+      setTabBarHeightPx(heightNum);
+    };
+
+    updateTabBarHeight();
+    // Beobachte Änderungen an der CSS-Variable
+    const observer = new MutationObserver(updateTabBarHeight);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["style"],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  const topMarginPx = isTopbarOpen ? tabBarHeightPx : 0;
 
   return (
     <div

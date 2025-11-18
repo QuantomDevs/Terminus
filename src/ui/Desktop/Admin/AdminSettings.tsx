@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Separator } from "@/components/ui/separator.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
@@ -56,6 +56,28 @@ export function AdminSettings({
 }: AdminSettingsProps): React.ReactElement {
   const { t } = useTranslation();
   const { confirmWithToast } = useConfirmation();
+
+  // Verwende CSS-Variable für dynamische Tab-Bar-Höhe
+  const [tabBarHeightPx, setTabBarHeightPx] = React.useState(38);
+
+  useEffect(() => {
+    const updateTabBarHeight = () => {
+      const height = getComputedStyle(document.documentElement)
+        .getPropertyValue("--tab-bar-height-px")
+        .trim();
+      const heightNum = parseInt(height) || 38;
+      setTabBarHeightPx(heightNum);
+    };
+
+    updateTabBarHeight();
+    const observer = new MutationObserver(updateTabBarHeight);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["style"],
+    });
+
+    return () => observer.disconnect();
+  }, []);
 
   const [allowRegistration, setAllowRegistration] = React.useState(true);
   const [regLoading, setRegLoading] = React.useState(false);
@@ -418,7 +440,8 @@ export function AdminSettings({
     }
   };
 
-  const topMarginPx = isTopbarOpen ? 74 : 26;
+  const extraMargin = 36; // Zusätzlicher Margin
+  const topMarginPx = isTopbarOpen ? tabBarHeightPx + extraMargin : 26;
   const leftMarginPx = 26;
   const bottomMarginPx = 8;
   const wrapperStyle: React.CSSProperties = {

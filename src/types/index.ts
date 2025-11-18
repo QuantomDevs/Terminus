@@ -256,7 +256,6 @@ export interface TabContextTab {
     | "home"
     | "terminal"
     | "local_terminal"
-    | "ssh_manager"
     | "server"
     | "admin"
     | "file_manager"

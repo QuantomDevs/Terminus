@@ -34,6 +34,7 @@ interface TabProps {
   disableActivate?: boolean;
   disableSplit?: boolean;
   disableClose?: boolean;
+  tabBarHeight?: string; // Optionale dynamische Höhe
 }
 
 export function Tab({
@@ -48,6 +49,7 @@ export function Tab({
   canClose = false,
   disableActivate = false,
   disableClose = false,
+  tabBarHeight = "38px", // Standard-Höhe
 }: TabProps): React.ReactElement {
   const { t } = useTranslation();
   const [tabWidth, setTabWidth] = useState<string>("dynamic");
@@ -150,8 +152,6 @@ export function Tab({
         return t("nav.admin");
       case "settings":
         return "Settings";
-      case "ssh_manager":
-        return t("nav.sshManager");
       default:
         return "Tab";
     }
@@ -162,7 +162,8 @@ export function Tab({
 
   return (
     <div
-      className={`h-full flex items-center gap-2 px-3 border-t-[1px] border-[var(--color-dark-border)] ${widthClass} ${bgClass} cursor-pointer transition-colors hover:bg-[var(--color-dark-bg-active)]`}
+      className={`group flex items-center gap-2 px-3 border-t-[1px] border-[var(--color-dark-border)] ${widthClass} ${bgClass} cursor-pointer transition-colors hover:bg-[var(--color-dark-bg-active)]`}
+      style={{ height: tabBarHeight }}
       onClick={!disableActivate ? onActivate : undefined}
     >
       {renaming ? (
@@ -188,7 +189,7 @@ export function Tab({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="p-1 hover:bg-[var(--color-sidebar-accent)] rounded transition-colors"
+                  className="p-1 hover:bg-[var(--color-sidebar-accent)] rounded transition-all opacity-0 group-hover:opacity-100"
                   onClick={(e) => e.stopPropagation()}
                   title="Tab Options"
                 >
@@ -248,7 +249,7 @@ export function Tab({
 
           {canClose && !hideCloseButton && onClose && (
             <button
-              className="p-1 hover:bg-red-500/20 rounded transition-colors"
+              className="p-1 hover:bg-red-500/20 rounded transition-all opacity-0 group-hover:opacity-100"
               onClick={(e) => {
                 e.stopPropagation();
                 if (!disableClose) onClose();

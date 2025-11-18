@@ -116,7 +116,8 @@ function AppContent() {
     currentTabData?.type === "local_terminal" ||
     currentTabData?.type === "server" ||
     currentTabData?.type === "file_manager";
-  const showSshManager = currentTabData?.type === "ssh_manager";
+  // Show HostManager when no tab is selected (currentTab is null) or when there are no tabs
+  const showSshManager = currentTab === null || tabs.length === 0;
   const showAdmin = currentTabData?.type === "admin";
   const showProfile = currentTabData?.type === "user_profile";
   const showSettings = currentTabData?.type === "settings";

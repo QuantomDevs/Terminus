@@ -40,6 +40,53 @@ export function TopNavbar({
     }
   }, []);
 
+  // Dynamische Berechnung der Tab-Bar-Dimensionen basierend auf der Plattform
+  const getTabBarDimensions = () => {
+    const isMac = platform === "darwin";
+    const isWin = platform === "win32";
+    const isLinux = !isMac && !isWin && platform !== null;
+
+    if (isMac) {
+      return {
+        height: "38px",
+        leftPadding: "70px", // Platz für macOS Traffic Lights
+        topOffset: "0rem",
+        useFlexLayout: true,
+      };
+    } else if (isWin) {
+      return {
+        height: "38px",
+        leftPadding: "0px",
+        topOffset: "0rem",
+        useFlexLayout: false,
+      };
+    } else {
+      // Linux oder Browser
+      return {
+        height: "38px",
+        leftPadding: "0px",
+        topOffset: "0rem",
+        useFlexLayout: false,
+      };
+    }
+  };
+
+  const dimensions = getTabBarDimensions();
+
+  // Setze CSS-Variable für die Tab-Bar-Höhe, damit andere Komponenten sie nutzen können
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      "--tab-bar-height",
+      dimensions.height
+    );
+    // Extrahiere die numerische Höhe für Berechnungen
+    const heightValue = parseInt(dimensions.height);
+    document.documentElement.style.setProperty(
+      "--tab-bar-height-px",
+      `${heightValue}`
+    );
+  }, [dimensions.height]);
+
   // Double-click handler for maximize/restore
   const handleHeaderDoubleClick = () => {
     if (isElectron() && window.electronAPI?.windowMaximize) {
@@ -79,7 +126,6 @@ export function TopNavbar({
     tabs.forEach((tab: any) => {
       if (
         tab.id !== keepTabId &&
-        tab.type !== "ssh_manager" &&
         (tab.type === "terminal" ||
           tab.type === "local_terminal" ||
           tab.type === "server" ||
@@ -102,15 +148,10 @@ export function TopNavbar({
   const currentTabIsUserProfile = currentTabObj?.type === "user_profile";
   const currentTabIsSettings = currentTabObj?.type === "settings";
 
-  const sshManagerTab = tabs.find((t: any) => t.type === "ssh_manager");
-  const openHostManagerTab = () => {
+  const openHostManager = () => {
     if (isSplitScreenActive) return;
-    if (sshManagerTab) {
-      setCurrentTab(sshManagerTab.id);
-      return;
-    }
-    const id = addTab({ type: "ssh_manager" } as any);
-    setCurrentTab(id);
+    // Set currentTab to null to show HostManager (no tab needed)
+    setCurrentTab(null);
   };
 
   const settingsTab = tabs.find((t: any) => t.type === "settings");
@@ -127,9 +168,10 @@ export function TopNavbar({
   return (
     <div>
       <div
-        className="fixed z-10 h-[38px] w-[100%] bg-background transition-all duration-200 ease-linear flex flex-row transform-none m-0 p-0"
+        className="fixed z-10 w-[100%] bg-background transition-all duration-200 ease-linear flex flex-row transform-none m-0 p-0"
         style={{
-          top: "0rem",
+          height: dimensions.height,
+          top: dimensions.topOffset,
           WebkitAppRegion: isElectron() ? "drag" : "none",
         } as React.CSSProperties}
         onDoubleClick={handleHeaderDoubleClick}
@@ -137,16 +179,23 @@ export function TopNavbar({
         {/* macOS Traffic Lights Placeholder */}
         {isElectron() && platform === "darwin" && (
           <div
-            className="h-full w-[70px] flex items-center justify-start pl-3"
-            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+            className="h-full flex items-center justify-start pl-3"
+            style={{
+              width: dimensions.leftPadding,
+              WebkitAppRegion: "no-drag",
+            } as React.CSSProperties}
           >
             {/* Placeholder for macOS traffic lights - they are rendered by the OS */}
           </div>
         )}
 
+        {/* Tab Container - passt sich an die Plattform an */}
         <div
           className="h-full pr-2 border-r-2 border-dark-border flex-1 flex items-center overflow-x-auto overflow-y-hidden gap-0 thin-scrollbar"
-          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+          style={{
+            WebkitAppRegion: "no-drag",
+            marginLeft: !isElectron() || platform !== "darwin" ? "0" : "0", // Kein extra Margin, da leftPadding bereits den Platz schafft
+          } as React.CSSProperties}
         >
           {tabs.map((tab: any) => {
             const isActive = tab.id === currentTab;
@@ -176,7 +225,6 @@ export function TopNavbar({
             const disableActivate =
               isSplit ||
               ((tab.type === "home" ||
-                tab.type === "ssh_manager" ||
                 tab.type === "admin" ||
                 tab.type === "user_profile" ||
                 tab.type === "settings") &&
@@ -214,14 +262,19 @@ export function TopNavbar({
                 disableActivate={disableActivate}
                 disableSplit={disableSplit}
                 disableClose={disableClose}
+                tabBarHeight={dimensions.height}
               />
             );
           })}
         </div>
 
+        {/* Action Buttons Container - passt sich dynamisch an */}
         <div
           className="flex items-center justify-center gap-1.5 px-2"
-          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+          style={{
+            height: dimensions.height,
+            WebkitAppRegion: "no-drag",
+          } as React.CSSProperties}
         >
           {/* Search / Quick Connect Button */}
           <Button
@@ -244,7 +297,7 @@ export function TopNavbar({
             variant="ghost"
             className="w-[24px] h-[24px] p-0 flex items-center justify-center hover:bg-transparent"
             title={t("nav.hostManager")}
-            onClick={openHostManagerTab}
+            onClick={openHostManager}
             disabled={isSplitScreenActive}
           >
             <Home className="h-3.5 w-3.5" />
@@ -265,8 +318,12 @@ export function TopNavbar({
           <TabDropdown />
         </div>
 
-        {/* Windows Controls integrated in header */}
-        {isElectron() && platform === "win32" && <WindowControls />}
+        {/* Windows Controls integrated in header - dynamische Höhe */}
+        {isElectron() && platform === "win32" && (
+          <div style={{ height: dimensions.height }}>
+            <WindowControls />
+          </div>
+        )}
       </div>
     </div>
   );
