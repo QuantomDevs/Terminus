@@ -31,7 +31,7 @@ This will start the backend and the frontend Vite server. You can access Terminu
 ## Contributing
 
 1. **Fork the repository**: Click the "Fork" button at the top right of
-   the [repository page](https://github.com/Snenjih/Terminus).
+   the [repository page](https://github.com/QuantomDevs/Terminus).
 2. **Create a new branch**:
    ```sh
    git checkout -b feature/my-new-feature
@@ -101,6 +101,6 @@ This will start the backend and the frontend Vite server. You can access Terminu
 
 ## Support
 
-If you need help or want to request a feature with Terminus, visit the [Issues](https://github.com/Snenjih/Support/issues) page, log in, and press `New Issue`.
-Please be as detailed as possible in your issue, preferably written in English. You can also join the [Discord](https://discord.gg/jVQGdvHDrf) server and visit the support
+If you need help or want to request a feature with Terminus, visit the [Issues](https://github.com/QuantomDevs/Support/issues) page, log in, and press `New Issue`.
+Please be as detailed as possible in your issue, preferably written in English. You can also join the [Discord](https://discord.gg/hCHD8zSUCj) server and visit the support
 channel, however, response times may be longer.
