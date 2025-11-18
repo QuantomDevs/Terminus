@@ -10,7 +10,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge)](LICENSE)
 [![GitHub Release](https://img.shields.io/github/v/release/Snenjih/Terminus?style=for-the-badge)](https://github.com/Snenjih/Terminus/releases)
 
-[Features](#features) • [Quick Start](#quick-start) • [Installation](#installation) • [Documentation](#documentation) • [Contributing](#contributing)
+[Features](#features) • [Quick Start](#quick-start) • [Installation](#installation) • [Contributing](#contributing)
 
 </div>
 
