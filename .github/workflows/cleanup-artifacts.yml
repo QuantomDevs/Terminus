@@ -1,0 +1,22 @@
+name: Delete Old Artifacts
+
+on:
+  # Ermöglicht das manuelle Starten dieses Workflows über den "Actions"-Tab
+  workflow_dispatch:
+
+  # Führt den Workflow automatisch einmal pro Woche aus (Sonntags um Mitternacht UTC)
+  schedule:
+    - cron: '0 0 * * 0'
+
+jobs:
+  remove-old-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - name: Remove old artifacts
+      uses: c-hive/gha-remove-artifacts@v1
+      with:
+        # Lösche alle Artefakte, die älter als 10 Tage sind.
+        # Sie können hier z.B. auch '2 weeks', '1 month' etc. verwenden.
+        age: '10 days'
