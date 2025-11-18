@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Terminus Logo](./public/icon.svg)
+![Terminus Cover](./public/cover-wide.png)
 
 **A modern, self-hosted server management platform**
 
