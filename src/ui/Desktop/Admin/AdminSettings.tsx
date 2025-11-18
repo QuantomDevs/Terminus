@@ -440,10 +440,9 @@ export function AdminSettings({
     }
   };
 
-  const extraMargin = 36; // Zusätzlicher Margin
-  const topMarginPx = isTopbarOpen ? tabBarHeightPx + extraMargin : 26;
-  const leftMarginPx = 26;
-  const bottomMarginPx = 8;
+  const topMarginPx = tabBarHeightPx;
+  const leftMarginPx = 0;
+  const bottomMarginPx = 0;
   const wrapperStyle: React.CSSProperties = {
     marginLeft: leftMarginPx,
     marginRight: 17,
@@ -455,7 +454,7 @@ export function AdminSettings({
   return (
     <div
       style={wrapperStyle}
-      className="bg-dark-bg text-white rounded-lg border-2 border-dark-border overflow-hidden"
+      className="bg-dark-bg text-white overflow-hidden"
     >
       <div className="h-full w-full flex flex-col">
         <div className="flex items-center justify-between px-3 pt-2 pb-2">
