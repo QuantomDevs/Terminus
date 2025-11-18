@@ -338,7 +338,7 @@ All desktop applications are built automatically with each release using GitHub 
 ### Local Development
 
 #### Prerequisites
-- Node.js 20+ LTS
+- Node.js 22+
 - npm 10+
 
 #### Setup
@@ -387,7 +387,7 @@ Terminus follows a modern full-stack architecture:
 - **Internationalization**: i18next
 
 ### Backend
-- **Runtime**: Node.js 20+ LTS
+- **Runtime**: Node.js 22+
 - **Framework**: Express 5
 - **Database**: SQLite with Drizzle ORM
 - **SSH**: ssh2 library

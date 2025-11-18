@@ -7,7 +7,7 @@ ARG TARGETVARIANT
 # ============================================
 # Base Build Stage - Common for all variants
 # ============================================
-FROM node:lts-slim AS base-build
+FROM node:22-slim AS base-build
 
 WORKDIR /usr/src/app
 
@@ -64,7 +64,7 @@ RUN npm run build:linux-appimage && \
 # ============================================
 # Runtime Base - Common runtime configuration
 # ============================================
-FROM node:lts-slim AS runtime-base
+FROM node:22-slim AS runtime-base
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
