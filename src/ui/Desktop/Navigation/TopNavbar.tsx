@@ -1,12 +1,31 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button.tsx";
-import { Home, Cog } from "lucide-react";
+import { Home, User, ChevronDown, ChevronUp, LogOut, Shield, Settings } from "lucide-react";
 import { Tab } from "@/ui/Desktop/Navigation/Tabs/Tab.tsx";
 import { useTabs } from "@/ui/Desktop/Navigation/Tabs/TabContext.tsx";
 import { useTranslation } from "react-i18next";
 import { TabDropdown } from "@/ui/Desktop/Navigation/Tabs/TabDropdown.tsx";
-import { isElectron } from "@/ui/main-axios.ts";
+import { isElectron, getUserInfo } from "@/ui/main-axios.ts";
 import { WindowControls } from "@/ui/Desktop/Navigation/WindowControls.tsx";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu.tsx";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+} from "@dnd-kit/sortable";
 
 interface TopNavbarProps {
   isTopbarOpen: boolean;
@@ -27,10 +46,22 @@ export function TopNavbar({
     removeTab,
     allSplitScreenTab,
     addTab,
+    reorderTabs,
   } = useTabs() as any;
   const { t } = useTranslation();
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Require 8px movement before drag starts
+      },
+    })
+  );
+
   const [platform, setPlatform] = useState<string | null>(null);
+  const [username, setUsername] = useState<string>("User");
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (isElectron() && window.electronAPI?.getPlatform) {
@@ -38,6 +69,18 @@ export function TopNavbar({
         setPlatform(p);
       });
     }
+  }, []);
+
+  useEffect(() => {
+    // Load user information
+    getUserInfo()
+      .then((userInfo) => {
+        setUsername(userInfo.username || "User");
+        setIsAdmin(!!userInfo.is_admin);
+      })
+      .catch((error) => {
+        console.error("Failed to load user info:", error);
+      });
   }, []);
 
   // Dynamische Berechnung der Tab-Bar-Dimensionen basierend auf der Plattform
@@ -49,7 +92,7 @@ export function TopNavbar({
     if (isMac) {
       return {
         height: "38px",
-        leftPadding: "70px", // Platz für macOS Traffic Lights
+        leftPadding: "90px", // Platz für macOS Traffic Lights
         topOffset: "0rem",
         useFlexLayout: true,
       };
@@ -165,6 +208,37 @@ export function TopNavbar({
     setCurrentTab(id);
   };
 
+  const adminTab = tabs.find((t: any) => t.type === "admin");
+  const openAdminTab = () => {
+    if (isSplitScreenActive) return;
+    if (adminTab) {
+      setCurrentTab(adminTab.id);
+      return;
+    }
+    const id = addTab({ type: "admin" } as any);
+    setCurrentTab(id);
+  };
+
+  const handleLogout = () => {
+    // Clear authentication tokens
+    localStorage.removeItem("jwt");
+    // Reload the page to show login screen
+    window.location.reload();
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = tabs.findIndex((tab: any) => tab.id === active.id);
+      const newIndex = tabs.findIndex((tab: any) => tab.id === over.id);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        reorderTabs(oldIndex, newIndex);
+      }
+    }
+  };
+
   return (
     <div>
       <div
@@ -190,14 +264,26 @@ export function TopNavbar({
         )}
 
         {/* Tab Container - passt sich an die Plattform an */}
-        <div
-          className="h-full pr-2 border-r-2 border-dark-border flex-1 flex items-center overflow-x-auto overflow-y-hidden gap-0 thin-scrollbar"
-          style={{
-            WebkitAppRegion: "no-drag",
-            marginLeft: !isElectron() || platform !== "darwin" ? "0" : "0", // Kein extra Margin, da leftPadding bereits den Platz schafft
-          } as React.CSSProperties}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
         >
-          {tabs.map((tab: any) => {
+          <SortableContext
+            items={tabs.map((tab: any) => tab.id)}
+            strategy={horizontalListSortingStrategy}
+          >
+            <div
+              className="h-full pr-2 border-r-2 border-dark-border flex-1 flex items-center overflow-x-auto overflow-y-hidden gap-0 thin-scrollbar"
+              style={{
+                WebkitAppRegion: isElectron() ? "drag" : "none",
+                marginLeft: !isElectron() || platform !== "darwin" ? "0" : "0", // Kein extra Margin, da leftPadding bereits den Platz schafft
+                scrollBehavior: "smooth",
+                userSelect: "none",
+                WebkitUserSelect: "none"
+              } as React.CSSProperties}
+            >
+              {tabs.map((tab: any) => {
             const isActive = tab.id === currentTab;
             const isSplit =
               Array.isArray(allSplitScreenTab) &&
@@ -242,6 +328,7 @@ export function TopNavbar({
             return (
               <Tab
                 key={tab.id}
+                id={tab.id}
                 tabType={tab.type}
                 title={tab.title}
                 isActive={isActive}
@@ -266,7 +353,9 @@ export function TopNavbar({
               />
             );
           })}
-        </div>
+            </div>
+          </SortableContext>
+        </DndContext>
 
         {/* Action Buttons Container - passt sich dynamisch an */}
         <div
@@ -276,22 +365,6 @@ export function TopNavbar({
             WebkitAppRegion: "no-drag",
           } as React.CSSProperties}
         >
-          {/* Search / Quick Connect Button */}
-          <Button
-            variant="ghost"
-            className="w-[24px] h-[24px] p-0 flex items-center justify-center hover:bg-transparent"
-            title={t("nav.quickConnect")}
-            onClick={onOpenQuickConnect}
-          >
-            <svg
-              className="h-3.5 w-3.5"
-              viewBox="0 0 576 512"
-              fill="currentColor"
-            >
-              <path d="M464 480H96c-35.35 0-64-28.65-64-64V112C32 103.2 24.84 96 16 96S0 103.2 0 112V416c0 53.02 42.98 96 96 96h368c8.836 0 16-7.164 16-16S472.8 480 464 480zM512 0H160C124.7 0 96 28.65 96 64v288c0 35.35 28.65 64 64 64h352c35.35 0 64-28.65 64-64V64C576 28.65 547.3 0 512 0zM128 64c0-17.67 14.33-32 32-32h64v64H128V64zM544 352c0 17.67-14.33 32-32 32H160c-17.67 0-32-14.33-32-32V128h416V352zM544 96H256V32h256c17.67 0 32 14.33 32 32V96z" />
-            </svg>
-          </Button>
-
           {/* Home / Host Manager Button */}
           <Button
             variant="ghost"
@@ -303,16 +376,53 @@ export function TopNavbar({
             <Home className="h-3.5 w-3.5" />
           </Button>
 
-          {/* Settings Button */}
-          <Button
-            variant="ghost"
-            className="w-[24px] h-[24px] p-0 flex items-center justify-center hover:bg-transparent"
-            title="Settings"
-            onClick={openSettingsTab}
-            disabled={isSplitScreenActive}
-          >
-            <Cog className="h-3.5 w-3.5" />
-          </Button>
+          {/* Profile Button with Dropdown */}
+          <DropdownMenu open={profileDropdownOpen} onOpenChange={setProfileDropdownOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className="flex items-center gap-2 px-2 h-[24px] hover:bg-transparent"
+                disabled={isSplitScreenActive}
+              >
+                <User className="h-3.5 w-3.5" />
+                <span className="text-sm">{username}</span>
+                {profileDropdownOpen ? (
+                  <ChevronUp className="h-3 w-3" />
+                ) : (
+                  <ChevronDown className="h-3 w-3" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-48 bg-sidebar-accent text-sidebar-accent-foreground border border-border rounded-md shadow-2xl p-1 z-[9999]"
+            >
+              <DropdownMenuItem
+                className="rounded px-2 py-1.5 hover:bg-white/15 hover:text-accent-foreground focus:bg-white/20 focus:text-accent-foreground cursor-pointer focus:outline-none text-sm flex items-center gap-2"
+                onClick={openSettingsTab}
+              >
+                <Settings className="h-3.5 w-3.5" />
+                Settings
+              </DropdownMenuItem>
+              {isAdmin && (
+                <DropdownMenuItem
+                  className="rounded px-2 py-1.5 hover:bg-white/15 hover:text-accent-foreground focus:bg-white/20 focus:text-accent-foreground cursor-pointer focus:outline-none text-sm flex items-center gap-2"
+                  onClick={openAdminTab}
+                >
+                  <Shield className="h-3.5 w-3.5" />
+                  Admin Panel
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator className="my-1 bg-white/10" />
+              <DropdownMenuItem
+                className="rounded px-2 py-1.5 hover:bg-destructive/20 focus:bg-destructive/30 cursor-pointer focus:outline-none text-sm flex items-center gap-2 text-[var(--destructive)]"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Tab Dropdown */}
           <TabDropdown />

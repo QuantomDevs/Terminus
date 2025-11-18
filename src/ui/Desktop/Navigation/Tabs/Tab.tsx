@@ -18,8 +18,11 @@ import {
   DropdownMenuTrigger,
 } from "@radix-ui/react-dropdown-menu";
 import { getSetting } from "@/ui/main-axios.ts";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface TabProps {
+  id: number;
   tabType: string;
   title?: string;
   isActive?: boolean;
@@ -38,6 +41,7 @@ interface TabProps {
 }
 
 export function Tab({
+  id,
   tabType,
   title,
   isActive,
@@ -52,21 +56,28 @@ export function Tab({
   tabBarHeight = "38px", // Standard-Höhe
 }: TabProps): React.ReactElement {
   const { t } = useTranslation();
-  const [tabWidth, setTabWidth] = useState<string>("dynamic");
   const [hideCloseButton, setHideCloseButton] = useState<boolean>(false);
   const [hideOptionsButton, setHideOptionsButton] = useState<boolean>(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(title || "");
 
+  // Sortable setup
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: id });
+
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const [tabWidthSetting, hideClose, hideOptions] = await Promise.all([
-          getSetting("tab_width").catch(() => ({ value: "dynamic" })),
+        const [hideClose, hideOptions] = await Promise.all([
           getSetting("hide_close_button").catch(() => ({ value: "false" })),
           getSetting("hide_options_button").catch(() => ({ value: "false" })),
         ]);
-        setTabWidth(tabWidthSetting.value || "dynamic");
         setHideCloseButton(hideClose.value === "true");
         setHideOptionsButton(hideOptions.value === "true");
       } catch (error) {
@@ -79,9 +90,6 @@ export function Tab({
     const handleSettingsChange = (event: CustomEvent) => {
       const { setting, value } = event.detail;
       switch (setting) {
-        case "tab_width":
-          setTabWidth(value);
-          break;
         case "hide_close_button":
           setHideCloseButton(value === true || value === "true");
           break;
@@ -157,13 +165,44 @@ export function Tab({
     }
   };
 
-  const widthClass = tabWidth === "fixed" ? "w-[200px]" : "min-w-fit max-w-[300px]";
-  const bgClass = isActive ? "bg-[var(--color-dark-bg)]" : "bg-[var(--color-dark-bg-darkest)]";
+  // Firefox-style floating active tab
+  const activeTabStyle = isActive ? {
+    marginTop: "-4px",
+    height: `calc(${tabBarHeight} + 4px)`,
+    borderTopLeftRadius: "8px",
+    borderTopRightRadius: "8px",
+    boxShadow: "0 -2px 4px rgba(0, 0, 0, 0.1)",
+    borderBottom: "2px solid var(--color-primary)",
+    backgroundColor: "var(--color-dark-bg)",
+    position: "relative" as const,
+    zIndex: 10,
+  } : {
+    backgroundColor: "var(--color-dark-bg-darkest)",
+  };
+
+  const sortableStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const tabStyle = {
+    ...activeTabStyle,
+    ...sortableStyle,
+    height: tabBarHeight,
+    flex: "1 1 0",
+    minWidth: "120px",
+    maxWidth: "300px",
+    WebkitAppRegion: "no-drag"
+  } as React.CSSProperties;
 
   return (
     <div
-      className={`group flex items-center gap-2 px-3 border-t-[1px] border-[var(--color-dark-border)] ${widthClass} ${bgClass} cursor-pointer transition-colors hover:bg-[var(--color-dark-bg-active)]`}
-      style={{ height: tabBarHeight }}
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      className={`group flex items-center gap-2 px-3 border-t-[1px] border-[var(--color-dark-border)] cursor-pointer transition-all ${!isActive ? "hover:bg-[var(--color-dark-bg-active)]" : ""}`}
+      style={tabStyle}
       onClick={!disableActivate ? onActivate : undefined}
     >
       {renaming ? (

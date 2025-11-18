@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button.tsx";
 import { Switch } from "@/components/ui/switch.tsx";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { Github, MessageCircle, BookOpen } from "lucide-react";
 import { getSetting, saveSetting, isElectron } from "@/ui/main-axios.ts";
 import { useTranslation } from "react-i18next";
@@ -16,7 +15,6 @@ export function ApplicationSettings({ isAdmin }: ApplicationSettingsProps) {
   const { addTab, setCurrentTab, tabs } = useTabs() as any;
   const [autoUpdateCheck, setAutoUpdateCheck] = useState<boolean>(true);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [tabWidth, setTabWidth] = useState<string>("dynamic");
   const [hideCloseButton, setHideCloseButton] = useState<boolean>(false);
   const [hideOptionsButton, setHideOptionsButton] = useState<boolean>(false);
   const appVersion = "1.0.0";
@@ -28,14 +26,12 @@ export function ApplicationSettings({ isAdmin }: ApplicationSettingsProps) {
   const loadAllSettings = async () => {
     try {
       setIsLoading(true);
-      const [autoUpdate, tabWidthSetting, hideClose, hideOptions] = await Promise.all([
+      const [autoUpdate, hideClose, hideOptions] = await Promise.all([
         getSetting("auto_update_check").catch(() => ({ value: "true" })),
-        getSetting("tab_width").catch(() => ({ value: "dynamic" })),
         getSetting("hide_close_button").catch(() => ({ value: "false" })),
         getSetting("hide_options_button").catch(() => ({ value: "false" })),
       ]);
       setAutoUpdateCheck(autoUpdate.value === "true");
-      setTabWidth(tabWidthSetting.value || "dynamic");
       setHideCloseButton(hideClose.value === "true");
       setHideOptionsButton(hideOptions.value === "true");
     } catch (error) {
@@ -52,19 +48,6 @@ export function ApplicationSettings({ isAdmin }: ApplicationSettingsProps) {
     } catch (error) {
       console.error("Failed to save auto update check setting:", error);
       setAutoUpdateCheck(!checked);
-    }
-  };
-
-  const handleTabWidthChange = async (value: string) => {
-    setTabWidth(value);
-    try {
-      await saveSetting("tab_width", value);
-      // Emit event to update all tabs immediately
-      window.dispatchEvent(new CustomEvent("tab-settings-changed", {
-        detail: { setting: "tab_width", value }
-      }));
-    } catch (error) {
-      console.error("Failed to save tab width setting:", error);
     }
   };
 
@@ -201,33 +184,6 @@ export function ApplicationSettings({ isAdmin }: ApplicationSettingsProps) {
         <h2 className="text-lg font-semibold text-white mb-4">Header Settings</h2>
 
         <div className="space-y-4">
-          {/* Tab Width Setting */}
-          <div className="p-4 rounded-lg bg-[var(--color-sidebar-bg)] border border-[var(--color-dark-border)]">
-            <div className="space-y-3">
-              <div className="space-y-0.5">
-                <label className="text-sm font-medium text-white">
-                  Tab Width
-                </label>
-                <p className="text-xs text-gray-400">
-                  Set tab width to dynamic (based on content) or fixed (200px)
-                </p>
-              </div>
-              <Select value={tabWidth} onValueChange={handleTabWidthChange} disabled={isLoading}>
-                <SelectTrigger className="bg-[var(--color-dark-bg)] border-[var(--color-dark-border)] text-gray-300">
-                  <SelectValue placeholder="Select tab width" />
-                </SelectTrigger>
-                <SelectContent className="bg-[var(--color-sidebar-bg)] border-[var(--color-dark-border)]">
-                  <SelectItem value="dynamic" className="text-gray-300 hover:bg-[var(--color-sidebar-accent)]">
-                    Dynamic
-                  </SelectItem>
-                  <SelectItem value="fixed" className="text-gray-300 hover:bg-[var(--color-sidebar-accent)]">
-                    Fixed (200px)
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
           {/* Hide Close Button Setting */}
           <div className="flex items-center justify-between p-4 rounded-lg bg-[var(--color-sidebar-bg)] border border-[var(--color-dark-border)]">
             <div className="space-y-0.5">

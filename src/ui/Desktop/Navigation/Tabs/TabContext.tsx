@@ -27,6 +27,7 @@ interface TabContextType {
   setSplitScreenTab: (tabId: number) => void;
   getTab: (tabId: number) => Tab | undefined;
   updateHostConfig: (hostId: number, newHostConfig: any) => void;
+  reorderTabs: (oldIndex: number, newIndex: number) => void;
 }
 
 const TabContext = createContext<TabContextType | undefined>(undefined);
@@ -173,6 +174,15 @@ export function TabProvider({ children }: TabProviderProps) {
         return tab;
       }),
     );
+  };
+
+  const reorderTabs = (oldIndex: number, newIndex: number) => {
+    setTabs((prev) => {
+      const newTabs = [...prev];
+      const [movedTab] = newTabs.splice(oldIndex, 1);
+      newTabs.splice(newIndex, 0, movedTab);
+      return newTabs;
+    });
   };
 
   // Restore session state on mount
@@ -357,6 +367,7 @@ export function TabProvider({ children }: TabProviderProps) {
     setSplitScreenTab,
     getTab,
     updateHostConfig,
+    reorderTabs,
   };
 
   return <TabContext.Provider value={value}>{children}</TabContext.Provider>;
