@@ -202,6 +202,13 @@ export const colorThemes = sqliteTable("color_themes", {
   name: text("name").notNull(),
   colors: text("colors").notNull(), // JSON string of color variables
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(false),
+  description: text("description"), // Theme description
+  author: text("author"), // Theme creator
+  version: text("version").default("1.0.0"), // Theme version
+  tags: text("tags"), // JSON array of tags
+  isFavorite: integer("is_favorite", { mode: "boolean" }).default(false), // User favorite
+  duplicateCount: integer("duplicate_count").default(0), // Times duplicated
+  lastUsed: text("last_used"), // Last activation
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
