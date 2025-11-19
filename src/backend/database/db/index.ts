@@ -262,6 +262,23 @@ async function initializeCompleteDatabase(): Promise<void> {
         FOREIGN KEY (user_id) REFERENCES users (id)
     );
 
+    CREATE TABLE IF NOT EXISTS server_metrics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        host_id INTEGER NOT NULL,
+        user_id TEXT NOT NULL,
+        timestamp INTEGER NOT NULL,
+        cpu_usage INTEGER,
+        memory_usage INTEGER,
+        disk_usage TEXT,
+        network_data TEXT,
+        uptime TEXT,
+        processes TEXT,
+        system_info TEXT,
+        ssh_logins TEXT,
+        FOREIGN KEY (host_id) REFERENCES ssh_data (id),
+        FOREIGN KEY (user_id) REFERENCES users (id)
+    );
+
 `);
 
   migrateSchema();
@@ -381,6 +398,36 @@ const migrateSchema = () => {
   addColumnIfNotExists("ssh_data", "autostart_password", "TEXT");
   addColumnIfNotExists("ssh_data", "autostart_key", "TEXT");
   addColumnIfNotExists("ssh_data", "autostart_key_password", "TEXT");
+
+  // Server Monitoring & Metrics columns
+  addColumnIfNotExists(
+    "ssh_data",
+    "status_monitoring_enabled",
+    "INTEGER NOT NULL DEFAULT 0",
+  );
+  addColumnIfNotExists(
+    "ssh_data",
+    "status_check_interval",
+    "INTEGER NOT NULL DEFAULT 30",
+  );
+  addColumnIfNotExists(
+    "ssh_data",
+    "metrics_monitoring_enabled",
+    "INTEGER NOT NULL DEFAULT 0",
+  );
+  addColumnIfNotExists(
+    "ssh_data",
+    "metrics_collection_interval",
+    "INTEGER NOT NULL DEFAULT 60",
+  );
+  addColumnIfNotExists("ssh_data", "enabled_widgets", "TEXT");
+  addColumnIfNotExists("ssh_data", "quick_actions", "TEXT");
+  addColumnIfNotExists(
+    "ssh_data",
+    "status",
+    'TEXT NOT NULL DEFAULT "unknown"',
+  );
+  addColumnIfNotExists("ssh_data", "last_status_check", "INTEGER");
 
   addColumnIfNotExists("ssh_credentials", "private_key", "TEXT");
   addColumnIfNotExists("ssh_credentials", "public_key", "TEXT");
