@@ -65,6 +65,27 @@ export const sshData = sqliteTable("ssh_data", {
     .notNull()
     .default(true),
   defaultPath: text("default_path"),
+
+  // Server Monitoring & Metrics
+  statusMonitoringEnabled: integer("status_monitoring_enabled", {
+    mode: "boolean",
+  })
+    .notNull()
+    .default(false),
+  statusCheckInterval: integer("status_check_interval").notNull().default(30),
+  metricsMonitoringEnabled: integer("metrics_monitoring_enabled", {
+    mode: "boolean",
+  })
+    .notNull()
+    .default(false),
+  metricsCollectionInterval: integer("metrics_collection_interval")
+    .notNull()
+    .default(60),
+  enabledWidgets: text("enabled_widgets"), // JSON array
+  quickActions: text("quick_actions"), // JSON array
+  status: text("status").notNull().default("unknown"), // "online" | "offline" | "unknown"
+  lastStatusCheck: integer("last_status_check"), // unix timestamp
+
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
@@ -201,4 +222,23 @@ export const sessionState = sqliteTable("session_state", {
   updatedAt: text("updated_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const serverMetrics = sqliteTable("server_metrics", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  hostId: integer("host_id")
+    .notNull()
+    .references(() => sshData.id),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id),
+  timestamp: integer("timestamp").notNull(), // unix timestamp
+  cpuUsage: integer("cpu_usage", { mode: "number" }), // percentage as float
+  memoryUsage: integer("memory_usage", { mode: "number" }), // percentage as float
+  diskUsage: text("disk_usage"), // JSON object with partition data
+  networkData: text("network_data"), // JSON object with interface stats
+  uptime: text("uptime"),
+  processes: text("processes"), // JSON array
+  systemInfo: text("system_info"),
+  sshLogins: text("ssh_logins"), // JSON array
 });

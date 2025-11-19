@@ -2745,3 +2745,73 @@ export async function deleteSessionState(): Promise<{ message: string }> {
     handleApiError(error, "delete session state");
   }
 }
+
+// ========================================
+// Server Metrics & Status
+// ========================================
+
+/**
+ * Get recent metrics for a host
+ */
+export async function getHostMetrics(
+  hostId: number,
+  limit?: number,
+): Promise<any[]> {
+  try {
+    const response = await authApi.get(`/ssh/hosts/${hostId}/metrics`, {
+      params: { limit: limit || 10 },
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "fetch host metrics");
+  }
+}
+
+/**
+ * Get historical metrics for a host
+ */
+export async function getHostMetricsHistory(
+  hostId: number,
+  startTime: number,
+  endTime: number,
+): Promise<any[]> {
+  try {
+    const response = await authApi.get(`/ssh/hosts/${hostId}/metrics/history`, {
+      params: { startTime, endTime },
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "fetch host metrics history");
+  }
+}
+
+/**
+ * Execute a quick action on a host
+ */
+export async function executeQuickAction(
+  hostId: number,
+  actionId: string,
+): Promise<{ success: boolean; output?: string; error?: string }> {
+  try {
+    const response = await authApi.post(`/ssh/hosts/${hostId}/quick-action`, {
+      actionId,
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "execute quick action");
+  }
+}
+
+/**
+ * Get host status
+ */
+export async function getHostStatus(
+  hostId: number,
+): Promise<{ status: string; lastStatusCheck: number }> {
+  try {
+    const response = await authApi.get(`/ssh/hosts/${hostId}/status`);
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "fetch host status");
+  }
+}

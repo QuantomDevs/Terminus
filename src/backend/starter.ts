@@ -112,6 +112,20 @@ import { systemLogger, versionLogger } from "./utils/logger.js";
     });
     await serverStatsModule.startServerStatsServer();
 
+    // Import and initialize metrics service
+    const metricsServiceModule = await import("./ssh/metrics-service.js");
+    systemLogger.info("Initializing metrics service...", {
+      operation: "init_metrics_service",
+    });
+    await metricsServiceModule.metricsService.initialize();
+
+    // Import and initialize status service
+    const statusServiceModule = await import("./ssh/status-service.js");
+    systemLogger.info("Initializing status service...", {
+      operation: "init_status_service",
+    });
+    await statusServiceModule.statusService.initialize();
+
     // Import and start local file manager server
     const localFileModule = await import("./local/local-file-manager.js");
     await localFileModule.startLocalFileServer();
@@ -132,6 +146,22 @@ import { systemLogger, versionLogger } from "./utils/logger.js";
       );
 
       try {
+        // Shutdown metrics service
+        if (metricsServiceModule && metricsServiceModule.metricsService) {
+          systemLogger.info("Shutting down metrics service...", {
+            operation: "shutdown_metrics_service",
+          });
+          metricsServiceModule.metricsService.shutdown();
+        }
+
+        // Shutdown status service
+        if (statusServiceModule && statusServiceModule.statusService) {
+          systemLogger.info("Shutting down status service...", {
+            operation: "shutdown_status_service",
+          });
+          statusServiceModule.statusService.shutdown();
+        }
+
         // Shutdown local terminal WebSocket server
         if (
           localPtyModule &&

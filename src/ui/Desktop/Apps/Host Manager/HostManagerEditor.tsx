@@ -208,6 +208,34 @@ export function HostManagerEditor({
         .default([]),
       enableFileManager: z.boolean().default(true),
       defaultPath: z.string().optional(),
+      statusMonitoringEnabled: z.boolean().default(false),
+      statusCheckInterval: z.coerce.number().min(5).max(3600).default(30),
+      metricsMonitoringEnabled: z.boolean().default(false),
+      metricsCollectionInterval: z.coerce.number().min(5).max(3600).default(60),
+      enabledWidgets: z
+        .array(z.string())
+        .default([
+          "cpu",
+          "memory",
+          "disk",
+          "network",
+          "uptime",
+          "processes",
+          "system",
+          "ssh_logins",
+        ]),
+      quickActions: z
+        .array(
+          z.object({
+            id: z.string(),
+            label: z.string().min(1).max(30),
+            command: z.string().min(1),
+            icon: z.string().optional(),
+            requireConfirmation: z.boolean().default(false),
+            order: z.number().default(0),
+          }),
+        )
+        .default([]),
     })
     .superRefine((data, ctx) => {
       if (data.authType === "password") {
@@ -290,6 +318,21 @@ export function HostManagerEditor({
       enableFileManager: true,
       defaultPath: "/",
       tunnelConnections: [],
+      statusMonitoringEnabled: false,
+      statusCheckInterval: 30,
+      metricsMonitoringEnabled: false,
+      metricsCollectionInterval: 60,
+      enabledWidgets: [
+        "cpu",
+        "memory",
+        "disk",
+        "network",
+        "uptime",
+        "processes",
+        "system",
+        "ssh_logins",
+      ],
+      quickActions: [],
     },
   });
 
@@ -346,6 +389,25 @@ export function HostManagerEditor({
         enableFileManager: Boolean(cleanedHost.enableFileManager),
         defaultPath: cleanedHost.defaultPath || "/",
         tunnelConnections: cleanedHost.tunnelConnections || [],
+        statusMonitoringEnabled: Boolean(
+          cleanedHost.statusMonitoringEnabled || false,
+        ),
+        statusCheckInterval: cleanedHost.statusCheckInterval || 30,
+        metricsMonitoringEnabled: Boolean(
+          cleanedHost.metricsMonitoringEnabled || false,
+        ),
+        metricsCollectionInterval: cleanedHost.metricsCollectionInterval || 60,
+        enabledWidgets: cleanedHost.enabledWidgets || [
+          "cpu",
+          "memory",
+          "disk",
+          "network",
+          "uptime",
+          "processes",
+          "system",
+          "ssh_logins",
+        ],
+        quickActions: cleanedHost.quickActions || [],
       };
 
       if (defaultAuthType === "password") {
@@ -381,6 +443,21 @@ export function HostManagerEditor({
         enableFileManager: true,
         defaultPath: "/",
         tunnelConnections: [],
+        statusMonitoringEnabled: false,
+        statusCheckInterval: 30,
+        metricsMonitoringEnabled: false,
+        metricsCollectionInterval: 60,
+        enabledWidgets: [
+          "cpu",
+          "memory",
+          "disk",
+          "network",
+          "uptime",
+          "processes",
+          "system",
+          "ssh_logins",
+        ],
+        quickActions: [],
       };
 
       form.reset(defaultFormData);
@@ -419,6 +496,12 @@ export function HostManagerEditor({
         enableFileManager: Boolean(data.enableFileManager),
         defaultPath: data.defaultPath || "/",
         tunnelConnections: data.tunnelConnections || [],
+        statusMonitoringEnabled: Boolean(data.statusMonitoringEnabled),
+        statusCheckInterval: data.statusCheckInterval,
+        metricsMonitoringEnabled: Boolean(data.metricsMonitoringEnabled),
+        metricsCollectionInterval: data.metricsCollectionInterval,
+        enabledWidgets: data.enabledWidgets || [],
+        quickActions: data.quickActions || [],
       };
 
       submitData.credentialId = null;
@@ -667,6 +750,7 @@ export function HostManagerEditor({
                 <TabsTrigger value="file_manager">
                   {t("hosts.fileManager")}
                 </TabsTrigger>
+                <TabsTrigger value="statistics">Statistics</TabsTrigger>
               </TabsList>
               <TabsContent value="general" className="pt-2">
                 <FormLabel className="mb-3 font-bold">
@@ -1530,6 +1614,243 @@ export function HostManagerEditor({
                     />
                   </div>
                 )}
+              </TabsContent>
+              <TabsContent value="statistics">
+                <FormLabel className="mb-3 font-bold">
+                  Status Monitoring
+                </FormLabel>
+                <FormField
+                  control={form.control}
+                  name="statusMonitoringEnabled"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">
+                          Enable Status Monitoring
+                        </FormLabel>
+                        <FormDescription>
+                          Monitor if this host is online or offline
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                {form.watch("statusMonitoringEnabled") && (
+                  <div className="mt-4">
+                    <FormField
+                      control={form.control}
+                      name="statusCheckInterval"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Status Check Interval</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="30"
+                              {...field}
+                              min={5}
+                              max={3600}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            How often to check if host is online (5-3600
+                            seconds)
+                          </FormDescription>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+
+                <FormLabel className="mb-3 mt-6 font-bold">
+                  Metrics Monitoring
+                </FormLabel>
+                <FormField
+                  control={form.control}
+                  name="metricsMonitoringEnabled"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">
+                          Enable Metrics Monitoring
+                        </FormLabel>
+                        <FormDescription>
+                          Collect CPU, RAM, disk, and other system statistics
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                {form.watch("metricsMonitoringEnabled") && (
+                  <div className="mt-4">
+                    <FormField
+                      control={form.control}
+                      name="metricsCollectionInterval"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Metrics Collection Interval</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="60"
+                              {...field}
+                              min={5}
+                              max={3600}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            How often to collect server statistics (5-3600
+                            seconds)
+                          </FormDescription>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="enabledWidgets"
+                      render={({ field }) => (
+                        <FormItem className="mt-4">
+                          <FormLabel>Enabled Widgets</FormLabel>
+                          <FormDescription>
+                            Select which statistics widgets to display for this
+                            host
+                          </FormDescription>
+                          <div className="grid grid-cols-2 gap-4 mt-2">
+                            {[
+                              { value: "cpu", label: "CPU Usage" },
+                              { value: "memory", label: "Memory Usage" },
+                              { value: "disk", label: "Disk Usage" },
+                              { value: "network", label: "Network Interfaces" },
+                              { value: "uptime", label: "Uptime" },
+                              { value: "processes", label: "Processes" },
+                              { value: "system", label: "System Information" },
+                              {
+                                value: "ssh_logins",
+                                label: "SSH Login Statistics",
+                              },
+                            ].map((widget) => (
+                              <div
+                                key={widget.value}
+                                className="flex items-center space-x-2"
+                              >
+                                <input
+                                  type="checkbox"
+                                  id={widget.value}
+                                  checked={field.value.includes(widget.value)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      field.onChange([
+                                        ...field.value,
+                                        widget.value,
+                                      ]);
+                                    } else {
+                                      field.onChange(
+                                        field.value.filter(
+                                          (v: string) => v !== widget.value,
+                                        ),
+                                      );
+                                    }
+                                  }}
+                                  className="rounded border-gray-300"
+                                />
+                                <label
+                                  htmlFor={widget.value}
+                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                >
+                                  {widget.label}
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+
+                <FormLabel className="mb-3 mt-6 font-bold">
+                  Quick Actions
+                </FormLabel>
+                <FormDescription className="mb-4">
+                  Quick actions allow you to create custom buttons that execute
+                  SSH commands on this server
+                </FormDescription>
+                <FormField
+                  control={form.control}
+                  name="quickActions"
+                  render={({ field }) => (
+                    <FormItem>
+                      {field.value.length === 0 ? (
+                        <div className="text-center py-8 border rounded-lg bg-muted/50">
+                          <p className="text-sm text-muted-foreground">
+                            No quick actions configured. Click 'Add Quick
+                            Action' to create one.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {field.value.map((action, index) => (
+                            <div
+                              key={action.id}
+                              className="flex items-center justify-between p-4 border rounded-lg bg-muted/50"
+                            >
+                              <div className="flex-1">
+                                <p className="font-medium">{action.label}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {action.command}
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const newActions = field.value.filter(
+                                    (_, i) => i !== index,
+                                  );
+                                  field.onChange(newActions);
+                                }}
+                              >
+                                Remove
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="mt-4"
+                        onClick={() => {
+                          const newAction = {
+                            id: `action-${Date.now()}`,
+                            label: `Action ${field.value.length + 1}`,
+                            command: "echo 'Hello World'",
+                            icon: "",
+                            requireConfirmation: false,
+                            order: field.value.length,
+                          };
+                          field.onChange([...field.value, newAction]);
+                        }}
+                      >
+                        Add Quick Action
+                      </Button>
+                    </FormItem>
+                  )}
+                />
               </TabsContent>
             </Tabs>
           </ScrollArea>

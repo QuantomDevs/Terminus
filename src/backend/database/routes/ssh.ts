@@ -7,8 +7,9 @@ import {
   fileManagerRecent,
   fileManagerPinned,
   fileManagerShortcuts,
+  serverMetrics,
 } from "../db/schema.js";
-import { eq, and, desc, isNotNull, or } from "drizzle-orm";
+import { eq, and, desc, isNotNull, or, gte, lte } from "drizzle-orm";
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import multer from "multer";
@@ -2106,6 +2107,161 @@ router.get(
       sshLogger.error("Error getting autostart status", error, {
         operation: "autostart_status_error",
         userId,
+      });
+      res.status(500).json({ error: "Internal server error" });
+    }
+  },
+);
+
+// Get recent metrics for a host
+router.get(
+  "/hosts/:hostId/metrics",
+  authenticateJWT,
+  async (req: Request, res: Response) => {
+    const userId = (req as any).user?.id;
+    const hostId = parseInt(req.params.hostId);
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    try {
+      // Verify host ownership
+      const host = await db
+        .select()
+        .from(sshData)
+        .where(and(eq(sshData.id, hostId), eq(sshData.userId, userId)))
+        .get();
+
+      if (!host) {
+        return res.status(404).json({ error: "Host not found" });
+      }
+
+      // Get recent metrics
+      const metrics = await db
+        .select()
+        .from(serverMetrics)
+        .where(eq(serverMetrics.hostId, hostId))
+        .orderBy(serverMetrics.timestamp)
+        .limit(limit)
+        .all();
+
+      res.json(metrics);
+    } catch (error) {
+      sshLogger.error("Error getting host metrics", error, {
+        operation: "get_host_metrics_error",
+        userId,
+        hostId,
+      });
+      res.status(500).json({ error: "Internal server error" });
+    }
+  },
+);
+
+// Get historical metrics for a host
+router.get(
+  "/hosts/:hostId/metrics/history",
+  authenticateJWT,
+  async (req: Request, res: Response) => {
+    const userId = (req as any).user?.id;
+    const hostId = parseInt(req.params.hostId);
+    const startTime = parseInt(req.query.startTime as string);
+    const endTime = parseInt(req.query.endTime as string);
+
+    try {
+      // Verify host ownership
+      const host = await db
+        .select()
+        .from(sshData)
+        .where(and(eq(sshData.id, hostId), eq(sshData.userId, userId)))
+        .get();
+
+      if (!host) {
+        return res.status(404).json({ error: "Host not found" });
+      }
+
+      // Get historical metrics
+      const metrics = await db
+        .select()
+        .from(serverMetrics)
+        .where(
+          and(
+            eq(serverMetrics.hostId, hostId),
+            gte(serverMetrics.timestamp, startTime),
+            lte(serverMetrics.timestamp, endTime),
+          ),
+        )
+        .orderBy(serverMetrics.timestamp)
+        .all();
+
+      res.json(metrics);
+    } catch (error) {
+      sshLogger.error("Error getting host metrics history", error, {
+        operation: "get_host_metrics_history_error",
+        userId,
+        hostId,
+      });
+      res.status(500).json({ error: "Internal server error" });
+    }
+  },
+);
+
+// Execute quick action on a host
+router.post(
+  "/hosts/:hostId/quick-action",
+  authenticateJWT,
+  async (req: Request, res: Response) => {
+    const userId = (req as any).user?.id;
+    const hostId = parseInt(req.params.hostId);
+    const { actionId } = req.body;
+
+    try {
+      const { executeQuickAction } = await import("../../ssh/quick-actions.js");
+      const result = await executeQuickAction(hostId, userId, actionId);
+
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error) {
+      sshLogger.error("Error executing quick action", error, {
+        operation: "execute_quick_action_error",
+        userId,
+        hostId,
+        actionId,
+      });
+      res.status(500).json({ error: "Internal server error" });
+    }
+  },
+);
+
+// Get host status
+router.get(
+  "/hosts/:hostId/status",
+  authenticateJWT,
+  async (req: Request, res: Response) => {
+    const userId = (req as any).user?.id;
+    const hostId = parseInt(req.params.hostId);
+
+    try {
+      // Verify host ownership and get status
+      const host = await db
+        .select()
+        .from(sshData)
+        .where(and(eq(sshData.id, hostId), eq(sshData.userId, userId)))
+        .get();
+
+      if (!host) {
+        return res.status(404).json({ error: "Host not found" });
+      }
+
+      res.json({
+        status: host.status,
+        lastStatusCheck: host.lastStatusCheck,
+      });
+    } catch (error) {
+      sshLogger.error("Error getting host status", error, {
+        operation: "get_host_status_error",
+        userId,
+        hostId,
       });
       res.status(500).json({ error: "Internal server error" });
     }
