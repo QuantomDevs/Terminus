@@ -261,7 +261,8 @@ export interface TabContextTab {
     | "file_manager"
     | "remote_editor"
     | "user_profile"
-    | "settings";
+    | "settings"
+    | "server_stats";
   title: string;
   hostConfig?: any;
   terminalRef?: React.RefObject<any>;

@@ -55,6 +55,7 @@ import {
   FolderMinus,
   Copy,
   ChevronDown,
+  BarChart3,
 } from "lucide-react";
 import type {
   SSHHost,
@@ -215,6 +216,24 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
     if (onEditHost) {
       onEditHost(host);
     }
+  };
+
+  const handleOpenServerStats = (host: SSHHost, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    // Check if metrics monitoring is enabled
+    if (!host.metricsMonitoringEnabled) {
+      toast.error("Metrics monitoring is not enabled for this host. Enable it in host settings.");
+      return;
+    }
+
+    // Open server stats tab
+    addTab({
+      id: `stats-${host.id}-${Date.now()}`,
+      type: "server_stats",
+      title: `Stats: ${host.name || `${host.username}@${host.ip}`}`,
+      hostConfig: host,
+    });
   };
 
   const handleClone = (host: SSHHost) => {
@@ -1207,6 +1226,23 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
                                         <p>Edit host</p>
                                       </TooltipContent>
                                     </Tooltip>
+                                    {host.metricsMonitoringEnabled && (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={(e) => handleOpenServerStats(host, e)}
+                                            className="h-5 w-5 p-0 text-purple-500 hover:text-purple-700 hover:bg-purple-500/10"
+                                          >
+                                            <BarChart3 className="h-3 w-3" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>Server Stats</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    )}
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <Button

@@ -11,6 +11,7 @@ import { AdminSettings } from "@/ui/Desktop/Admin/AdminSettings.tsx";
 import { UserProfile } from "@/ui/Desktop/User/UserProfile.tsx";
 import { SettingsPage } from "@/ui/Desktop/Settings/SettingsPage.tsx";
 import RemoteEditor from "@/ui/Desktop/Apps/Editor/RemoteEditor.tsx";
+import { ServerStatsPage } from "@/ui/Desktop/Apps/Server Stats/ServerStatsPage.tsx";
 import { Toaster } from "@/components/ui/sonner.tsx";
 import { VersionCheckModal } from "@/components/ui/version-check-modal.tsx";
 import { QuickConnectModal } from "@/components/ui/QuickConnectModal.tsx";
@@ -122,6 +123,7 @@ function AppContent() {
   const showProfile = currentTabData?.type === "user_profile";
   const showSettings = currentTabData?.type === "settings";
   const showRemoteEditor = currentTabData?.type === "remote_editor";
+  const showServerStats = currentTabData?.type === "server_stats";
 
   return (
     <div>
@@ -209,6 +211,12 @@ function AppContent() {
                 sshHost={currentTabData.hostConfig.sshHost}
                 onClose={() => removeTab(currentTab!)}
               />
+            </div>
+          )}
+
+          {showServerStats && currentTabData?.hostConfig && (
+            <div className="h-screen w-full visible pointer-events-auto static overflow-hidden">
+              <ServerStatsPage hostConfig={currentTabData.hostConfig} />
             </div>
           )}
 
