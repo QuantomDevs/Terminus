@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { SketchPicker } from "react-color";
 import { Button } from "./button";
-import { Copy, RotateCcw, Check, AlertCircle, CheckCircle } from "lucide-react";
+import { Copy, RotateCcw, Check, AlertCircle, CheckCircle, Info } from "lucide-react";
 import { checkColorPair, getContrastRatio, getWCAGLevel } from "@/ui/utils/contrast-checker.ts";
 import { generatePalette, type PaletteType } from "@/ui/utils/palette-generator.ts";
 import { cn } from "@/lib/utils.ts";
@@ -30,6 +30,7 @@ export const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
   const [recentColors, setRecentColors] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<"picker" | "harmony">("picker");
+  const [showWcagTooltip, setShowWcagTooltip] = useState(false);
 
   useEffect(() => {
     setSelectedColor(color);
@@ -242,7 +243,28 @@ export const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-400">WCAG Level:</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-gray-400">WCAG Level:</span>
+                    <div
+                      className="relative"
+                      onMouseEnter={() => setShowWcagTooltip(true)}
+                      onMouseLeave={() => setShowWcagTooltip(false)}
+                    >
+                      <Info className="w-4 h-4 text-gray-400 hover:text-white cursor-help transition-colors" />
+                      {showWcagTooltip && (
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-[var(--color-dark-bg)] border border-[var(--color-dark-border)] rounded-md shadow-xl z-50">
+                          <div className="text-xs text-white space-y-2">
+                            <p className="font-semibold">WCAG Contrast Levels:</p>
+                            <p><span className="text-green-500">AAA</span>: 7:1+ (Best accessibility)</p>
+                            <p><span className="text-green-500">AA</span>: 4.5:1+ (Good accessibility)</p>
+                            <p><span className="text-yellow-500">AA Large</span>: 3:1+ (Large text only)</p>
+                            <p><span className="text-yellow-500">Fail</span>: Below 3:1 (Poor contrast)</p>
+                          </div>
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-[var(--color-dark-border)]"></div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <div className="flex items-center gap-1">
                     {wcagLevel === "AAA" || wcagLevel === "AA" ? (
                       <CheckCircle className="w-4 h-4 text-green-500" />

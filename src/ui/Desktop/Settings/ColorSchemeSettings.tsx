@@ -8,10 +8,11 @@ import { Input } from "../../../components/ui/input";
 import {
   Plus,
   Upload,
-  Download,
   RefreshCw,
   Palette,
-  Search
+  Search,
+  Edit,
+  X
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -87,6 +88,14 @@ export const ColorSchemeSettings = () => {
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [editingThemeId, setEditingThemeId] = useState<number | null>(null);
 
+  // Modal states
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [nameModalInput, setNameModalInput] = useState("");
+  const [nameModalType, setNameModalType] = useState<"create" | "update">("create");
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmModalMessage, setConfirmModalMessage] = useState("");
+  const [confirmModalAction, setConfirmModalAction] = useState<(() => void) | null>(null);
+
   // Load current colors from CSS variables
   useEffect(() => {
     const initializeSettings = async () => {
@@ -122,8 +131,25 @@ export const ColorSchemeSettings = () => {
       setActiveTheme(active || null);
     } catch (error) {
       console.error("Failed to load themes:", error);
-      toast.error("Failed to load themes");
+      // Don't show error toast if it's just an auth issue
+      if (error instanceof Error && !error.message.includes("Authentication")) {
+        toast.error("Failed to load themes");
+      }
     }
+  };
+
+  const showConfirm = (message: string, onConfirm: () => void) => {
+    setConfirmModalMessage(message);
+    setConfirmModalAction(() => onConfirm);
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirm = () => {
+    if (confirmModalAction) {
+      confirmModalAction();
+    }
+    setShowConfirmModal(false);
+    setConfirmModalAction(null);
   };
 
   const handleColorClick = (colorName: string, colorValue: string) => {
@@ -145,7 +171,27 @@ export const ColorSchemeSettings = () => {
   };
 
   const handleCreateTheme = () => {
+    // Start with current colors for a new theme
+    loadCurrentColors();
     setEditingThemeId(null);
+    setIsEditorOpen(true);
+  };
+
+  const handleEditCurrentTheme = () => {
+    if (!activeTheme) {
+      toast.error("No active theme to edit");
+      return;
+    }
+
+    const themeColors = typeof activeTheme.colors === "string" ? JSON.parse(activeTheme.colors) : activeTheme.colors;
+    setColors(themeColors);
+
+    // Apply all colors to the root element for editing
+    Object.entries(themeColors).forEach(([name, value]) => {
+      document.documentElement.style.setProperty(name, value as string);
+    });
+
+    setEditingThemeId(activeTheme.id);
     setIsEditorOpen(true);
   };
 
@@ -165,21 +211,37 @@ export const ColorSchemeSettings = () => {
     }
   };
 
-  const handleSaveCurrentTheme = async () => {
-    const themeName = prompt("Enter theme name:");
-    if (!themeName?.trim()) return;
+  const handleSaveCurrentTheme = () => {
+    if (editingThemeId) {
+      setNameModalType("update");
+      const theme = themes.find((t) => t.id === editingThemeId);
+      setNameModalInput(theme?.name || "");
+    } else {
+      setNameModalType("create");
+      setNameModalInput("");
+    }
+    setShowNameModal(true);
+  };
+
+  const handleNameModalSubmit = async () => {
+    if (!nameModalInput.trim()) {
+      toast.error("Please enter a theme name");
+      return;
+    }
 
     try {
       if (editingThemeId) {
         // Update existing theme
-        await updateTheme(editingThemeId, themeName, colors);
-        toast.success(`Theme "${themeName}" updated successfully`);
+        await updateTheme(editingThemeId, nameModalInput, colors);
+        toast.success(`Theme "${nameModalInput}" updated successfully`);
       } else {
         // Create new theme
-        await createTheme(themeName, colors);
-        toast.success(`Theme "${themeName}" created successfully`);
+        await createTheme(nameModalInput, colors);
+        toast.success(`Theme "${nameModalInput}" created successfully`);
       }
 
+      setShowNameModal(false);
+      setNameModalInput("");
       setIsEditorOpen(false);
       setEditingThemeId(null);
       await loadThemes();
@@ -283,13 +345,20 @@ export const ColorSchemeSettings = () => {
       const theme = themes.find((t) => t.id === themeId);
       if (!theme) return;
 
-      if (!confirm(`Are you sure you want to delete "${theme.name}"?`)) return;
-
-      await deleteTheme(themeId);
-      toast.success("Theme deleted successfully");
-      await loadThemes();
+      showConfirm(
+        `Are you sure you want to delete "${theme.name}"?`,
+        async () => {
+          try {
+            await deleteTheme(themeId);
+            toast.success("Theme deleted successfully");
+            await loadThemes();
+          } catch (error) {
+            toast.error("Failed to delete theme");
+            console.error(error);
+          }
+        }
+      );
     } catch (error) {
-      toast.error("Failed to delete theme");
       console.error(error);
     }
   };
@@ -307,16 +376,19 @@ export const ColorSchemeSettings = () => {
   };
 
   const handleResetToDefault = () => {
-    if (!confirm("Reset all colors to default? This will clear all custom changes.")) return;
+    showConfirm(
+      "Reset all colors to default? This will clear all custom changes.",
+      () => {
+        // Remove all custom color properties from root element
+        COLOR_VARIABLES.forEach((variable) => {
+          document.documentElement.style.removeProperty(variable.name);
+        });
 
-    // Remove all custom color properties from root element
-    COLOR_VARIABLES.forEach((variable) => {
-      document.documentElement.style.removeProperty(variable.name);
-    });
-
-    // Reload colors from CSS
-    loadCurrentColors();
-    toast.success("Colors reset to default");
+        // Reload colors from CSS
+        loadCurrentColors();
+        toast.success("Colors reset to default");
+      }
+    );
   };
 
   // Group colors by category
@@ -365,6 +437,16 @@ export const ColorSchemeSettings = () => {
           <Plus className="w-4 h-4" />
           Create Theme
         </Button>
+        {activeTheme && (
+          <Button
+            onClick={handleEditCurrentTheme}
+            variant="outline"
+            className="gap-2 border-[var(--color-dark-border)] bg-[var(--color-dark-bg-button)] hover:bg-[var(--color-dark-hover)]"
+          >
+            <Edit className="w-4 h-4" />
+            Edit Current Theme
+          </Button>
+        )}
         <Button
           variant="outline"
           onClick={() => setIsLibraryOpen(true)}
@@ -521,6 +603,91 @@ export const ColorSchemeSettings = () => {
                 className="bg-[var(--color-primary)] hover:opacity-90"
               >
                 {editingThemeId ? "Update Theme" : "Save Theme"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Name Input Modal */}
+      {showNameModal && (
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center"
+          style={{
+            backdropFilter: "blur(8px)",
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+          }}
+          onClick={() => setShowNameModal(false)}
+        >
+          <div
+            className="flex flex-col rounded-lg border-2 border-[var(--color-dark-border)] bg-[var(--color-dark-bg)] shadow-2xl w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-white mb-4">
+                {nameModalType === "create" ? "Create Theme" : "Update Theme"}
+              </h3>
+              <Input
+                type="text"
+                placeholder="Enter theme name..."
+                value={nameModalInput}
+                onChange={(e) => setNameModalInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleNameModalSubmit();
+                  if (e.key === "Escape") setShowNameModal(false);
+                }}
+                className="bg-[var(--color-dark-bg-input)] border-[var(--color-dark-border)] text-white"
+                autoFocus
+              />
+            </div>
+            <div className="p-4 border-t border-[var(--color-dark-border)] flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowNameModal(false)}
+                className="border-[var(--color-dark-border)] bg-[var(--color-dark-bg-button)] hover:bg-[var(--color-dark-hover)]"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleNameModalSubmit}
+                className="bg-[var(--color-primary)] hover:opacity-90"
+              >
+                {nameModalType === "create" ? "Create" : "Update"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center"
+          style={{
+            backdropFilter: "blur(8px)",
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+          }}
+          onClick={() => setShowConfirmModal(false)}
+        >
+          <div
+            className="flex flex-col rounded-lg border-2 border-[var(--color-dark-border)] bg-[var(--color-dark-bg)] shadow-2xl w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-white mb-4">Confirm Action</h3>
+              <p className="text-sm text-gray-400">{confirmModalMessage}</p>
+            </div>
+            <div className="p-4 border-t border-[var(--color-dark-border)] flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowConfirmModal(false)}
+                className="border-[var(--color-dark-border)] bg-[var(--color-dark-bg-button)] hover:bg-[var(--color-dark-hover)]"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirm}
+                className="bg-red-600 text-white hover:bg-red-700"
+              >
+                Confirm
               </Button>
             </div>
           </div>

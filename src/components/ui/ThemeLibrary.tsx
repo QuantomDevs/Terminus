@@ -99,7 +99,7 @@ export function ThemeLibrary({ onInstallTheme, onClose }: ThemeLibraryProps) {
                 className={cn(
                   "px-4 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors",
                   selectedCategory === category.id
-                    ? "bg-[var(--color-primary)] text-white"
+                    ? "bg-[var(--color-primary)] text-[var(--color-dark-bg)]"
                     : "bg-[var(--color-dark-bg-button)] text-gray-400 hover:text-white hover:bg-[var(--color-dark-hover)]"
                 )}
               >
