@@ -258,7 +258,8 @@ function createApiInstance(
 
       if (process.env.NODE_ENV === "development") {
         if (status === 401) {
-          logger.authError(method, fullUrl, context);
+          // Suppress auth error logs - they are expected when user is not logged in
+          // logger.authError(method, fullUrl, context);
         } else if (status === 0 || !status) {
           logger.networkError(method, fullUrl, message, context);
         } else {
@@ -553,10 +554,11 @@ function handleApiError(error: unknown, operation: string): never {
     };
 
     if (status === 401) {
-      authLogger.warn(
-        `Auth failed: ${method} ${url} - ${message}`,
-        errorContext,
-      );
+      // Suppress auth warning logs - they are expected when user is not logged in
+      // authLogger.warn(
+      //   `Auth failed: ${method} ${url} - ${message}`,
+      //   errorContext,
+      // );
 
       const isLoginEndpoint = url?.includes("/users/login");
       const errorMessage = isLoginEndpoint

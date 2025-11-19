@@ -26,7 +26,7 @@ import {
   type ColorTheme,
   type ThemeExportData,
 } from "../../main-axios";
-import type { ThemeDefinition } from "@/ui/constants/default-themes.ts";
+import { DEFAULT_THEMES, type ThemeDefinition } from "@/ui/constants/default-themes.ts";
 import { cn } from "@/lib/utils.ts";
 
 // Define all customizable CSS variables
@@ -96,6 +96,14 @@ export const ColorSchemeSettings = () => {
   const [confirmModalMessage, setConfirmModalMessage] = useState("");
   const [confirmModalAction, setConfirmModalAction] = useState<(() => void) | null>(null);
 
+  // Helper function to check if error is authentication related
+  const isAuthError = (error: unknown): boolean => {
+    return error instanceof Error &&
+      (error.message.includes("Authentication") ||
+       error.message.includes("401") ||
+       error.message.includes("Unauthorized"));
+  };
+
   // Load current colors from CSS variables
   useEffect(() => {
     const initializeSettings = async () => {
@@ -130,9 +138,9 @@ export const ColorSchemeSettings = () => {
       const active = fetchedThemes.find((t) => t.isActive);
       setActiveTheme(active || null);
     } catch (error) {
-      console.error("Failed to load themes:", error);
-      // Don't show error toast if it's just an auth issue
-      if (error instanceof Error && !error.message.includes("Authentication")) {
+      // Silently ignore authentication errors (user not logged in)
+      if (!isAuthError(error)) {
+        console.error("Failed to load themes:", error);
         toast.error("Failed to load themes");
       }
     }
@@ -159,20 +167,33 @@ export const ColorSchemeSettings = () => {
 
   const handleColorChange = (newColor: string) => {
     if (selectedColor) {
-      // Update the color in state
+      // Update the color in state only (no live preview on app)
       setColors((prev) => ({
         ...prev,
         [selectedColor.name]: newColor,
       }));
-
-      // Apply the color change to the root element immediately for live preview
-      document.documentElement.style.setProperty(selectedColor.name, newColor);
     }
   };
 
   const handleCreateTheme = () => {
-    // Start with current colors for a new theme
-    loadCurrentColors();
+    // Start with default theme colors for a brand new theme
+    const defaultTheme = DEFAULT_THEMES[0]; // Use "Default Dark" as base
+    const defaultColors = { ...defaultTheme.colors };
+
+    // Add all missing CSS variables with current default values
+    COLOR_VARIABLES.forEach((variable) => {
+      if (!defaultColors[variable.name]) {
+        const root = document.documentElement;
+        const computedStyle = getComputedStyle(root);
+        const value = computedStyle.getPropertyValue(variable.name).trim();
+        if (value) {
+          defaultColors[variable.name] = value;
+        }
+      }
+    });
+
+    // Only update state, do NOT apply to document (no live preview on app)
+    setColors(defaultColors);
     setEditingThemeId(null);
     setIsEditorOpen(true);
   };
@@ -184,13 +205,9 @@ export const ColorSchemeSettings = () => {
     }
 
     const themeColors = typeof activeTheme.colors === "string" ? JSON.parse(activeTheme.colors) : activeTheme.colors;
+
+    // Only update state, do NOT apply to document (no live preview on app)
     setColors(themeColors);
-
-    // Apply all colors to the root element for editing
-    Object.entries(themeColors).forEach(([name, value]) => {
-      document.documentElement.style.setProperty(name, value as string);
-    });
-
     setEditingThemeId(activeTheme.id);
     setIsEditorOpen(true);
   };
@@ -199,13 +216,9 @@ export const ColorSchemeSettings = () => {
     const theme = themes.find((t) => t.id === themeId);
     if (theme) {
       const themeColors = typeof theme.colors === "string" ? JSON.parse(theme.colors) : theme.colors;
+
+      // Only update state, do NOT apply to document (no live preview on app)
       setColors(themeColors);
-
-      // Apply all colors to the root element for editing
-      Object.entries(themeColors).forEach(([name, value]) => {
-        document.documentElement.style.setProperty(name, value as string);
-      });
-
       setEditingThemeId(themeId);
       setIsEditorOpen(true);
     }
@@ -246,8 +259,11 @@ export const ColorSchemeSettings = () => {
       setEditingThemeId(null);
       await loadThemes();
     } catch (error) {
-      toast.error("Failed to save theme");
-      console.error(error);
+      // Silently ignore authentication errors (user not logged in)
+      if (!isAuthError(error)) {
+        toast.error("Failed to save theme");
+        console.error(error);
+      }
     }
   };
 
@@ -271,8 +287,11 @@ export const ColorSchemeSettings = () => {
       await loadThemes();
       toast.success(`Theme "${theme.name}" applied successfully`);
     } catch (error) {
-      toast.error("Failed to activate theme");
-      console.error(error);
+      // Silently ignore authentication errors (user not logged in)
+      if (!isAuthError(error)) {
+        toast.error("Failed to activate theme");
+        console.error(error);
+      }
     }
   };
 
@@ -288,8 +307,11 @@ export const ColorSchemeSettings = () => {
       toast.success(`Theme duplicated as "${newName}"`);
       await loadThemes();
     } catch (error) {
-      toast.error("Failed to duplicate theme");
-      console.error(error);
+      // Silently ignore authentication errors (user not logged in)
+      if (!isAuthError(error)) {
+        toast.error("Failed to duplicate theme");
+        console.error(error);
+      }
     }
   };
 
@@ -312,8 +334,11 @@ export const ColorSchemeSettings = () => {
 
       toast.success("Theme exported successfully");
     } catch (error) {
-      toast.error("Failed to export theme");
-      console.error(error);
+      // Silently ignore authentication errors (user not logged in)
+      if (!isAuthError(error)) {
+        toast.error("Failed to export theme");
+        console.error(error);
+      }
     }
   };
 
@@ -333,8 +358,11 @@ export const ColorSchemeSettings = () => {
         toast.success("Theme imported successfully");
         await loadThemes();
       } catch (error) {
-        toast.error("Failed to import theme. Invalid file format.");
-        console.error(error);
+        // Silently ignore authentication errors (user not logged in)
+        if (!isAuthError(error)) {
+          toast.error("Failed to import theme. Invalid file format.");
+          console.error(error);
+        }
       }
     };
     input.click();
@@ -353,13 +381,19 @@ export const ColorSchemeSettings = () => {
             toast.success("Theme deleted successfully");
             await loadThemes();
           } catch (error) {
-            toast.error("Failed to delete theme");
-            console.error(error);
+            // Silently ignore authentication errors (user not logged in)
+            if (!isAuthError(error)) {
+              toast.error("Failed to delete theme");
+              console.error(error);
+            }
           }
         }
       );
     } catch (error) {
-      console.error(error);
+      // Silently ignore authentication errors (user not logged in)
+      if (!isAuthError(error)) {
+        console.error(error);
+      }
     }
   };
 
@@ -370,8 +404,11 @@ export const ColorSchemeSettings = () => {
       await loadThemes();
       setIsLibraryOpen(false);
     } catch (error) {
-      toast.error("Failed to install theme");
-      console.error(error);
+      // Silently ignore authentication errors (user not logged in)
+      if (!isAuthError(error)) {
+        toast.error("Failed to install theme");
+        console.error(error);
+      }
     }
   };
 
