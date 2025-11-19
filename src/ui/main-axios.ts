@@ -2662,6 +2662,13 @@ export interface ColorTheme {
   name: string;
   colors: string; // JSON string
   isActive: boolean;
+  description?: string | null;
+  author?: string | null;
+  version?: string | null;
+  tags?: string | null; // JSON string array
+  isFavorite?: boolean | null;
+  duplicateCount?: number | null;
+  lastUsed?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -2736,6 +2743,44 @@ export async function activateTheme(
     return response.data;
   } catch (error) {
     handleApiError(error, "activate theme");
+  }
+}
+
+export interface ThemeExportData {
+  name: string;
+  colors: Record<string, string>;
+  description?: string;
+  author?: string;
+  version?: string;
+  tags?: string[];
+  exported_at: string;
+  exported_from: string;
+}
+
+export async function importTheme(
+  themeData: {
+    name: string;
+    colors: Record<string, string> | string;
+    description?: string;
+    author?: string;
+    version?: string;
+    tags?: string[] | string;
+  },
+): Promise<{ message: string; id: number; name: string }> {
+  try {
+    const response = await authApi.post("/themes/import", themeData);
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "import theme");
+  }
+}
+
+export async function exportTheme(themeId: number): Promise<ThemeExportData> {
+  try {
+    const response = await authApi.get(`/themes/${themeId}/export`);
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "export theme");
   }
 }
 

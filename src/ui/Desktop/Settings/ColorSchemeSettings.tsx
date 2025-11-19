@@ -1,23 +1,32 @@
 import React, { useState, useEffect } from "react";
 import { ColorPickerModal } from "../../../components/ui/ColorPickerModal";
+import { ThemeCard } from "../../../components/ui/ThemeCard";
+import { ThemeCardSkeleton } from "../../../components/ui/ThemeCardSkeleton";
+import { ThemeLibrary } from "../../../components/ui/ThemeLibrary";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../../components/ui/select";
-import { Save, RefreshCw, Trash2, Download, Upload } from "lucide-react";
+  Plus,
+  Upload,
+  Download,
+  RefreshCw,
+  Palette,
+  Search
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   getThemes,
   createTheme,
   deleteTheme,
   activateTheme,
+  updateTheme,
+  importTheme,
+  exportTheme,
   type ColorTheme,
+  type ThemeExportData,
 } from "../../main-axios";
+import type { ThemeDefinition } from "@/ui/constants/default-themes.ts";
+import { cn } from "@/lib/utils.ts";
 
 // Define all customizable CSS variables
 const COLOR_VARIABLES = [
@@ -71,10 +80,12 @@ export const ColorSchemeSettings = () => {
   } | null>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [themes, setThemes] = useState<ColorTheme[]>([]);
-  const [selectedThemeId, setSelectedThemeId] = useState<string>("");
-  const [newThemeName, setNewThemeName] = useState("");
-  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const [activeTheme, setActiveTheme] = useState<ColorTheme | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [editingThemeId, setEditingThemeId] = useState<number | null>(null);
 
   // Load current colors from CSS variables
   useEffect(() => {
@@ -107,10 +118,8 @@ export const ColorSchemeSettings = () => {
       setThemes(fetchedThemes);
 
       // Find and set the active theme
-      const activeTheme = fetchedThemes.find((t) => t.isActive);
-      if (activeTheme) {
-        setSelectedThemeId(activeTheme.id.toString());
-      }
+      const active = fetchedThemes.find((t) => t.isActive);
+      setActiveTheme(active || null);
     } catch (error) {
       console.error("Failed to load themes:", error);
       toast.error("Failed to load themes");
@@ -135,30 +144,57 @@ export const ColorSchemeSettings = () => {
     }
   };
 
-  const handleSaveTheme = async () => {
-    if (!newThemeName.trim()) {
-      toast.error("Please enter a theme name");
-      return;
+  const handleCreateTheme = () => {
+    setEditingThemeId(null);
+    setIsEditorOpen(true);
+  };
+
+  const handleEditTheme = (themeId: number) => {
+    const theme = themes.find((t) => t.id === themeId);
+    if (theme) {
+      const themeColors = typeof theme.colors === "string" ? JSON.parse(theme.colors) : theme.colors;
+      setColors(themeColors);
+
+      // Apply all colors to the root element for editing
+      Object.entries(themeColors).forEach(([name, value]) => {
+        document.documentElement.style.setProperty(name, value as string);
+      });
+
+      setEditingThemeId(themeId);
+      setIsEditorOpen(true);
     }
+  };
+
+  const handleSaveCurrentTheme = async () => {
+    const themeName = prompt("Enter theme name:");
+    if (!themeName?.trim()) return;
 
     try {
-      await createTheme(newThemeName, colors);
-      toast.success(`Theme "${newThemeName}" saved successfully`);
-      setNewThemeName("");
-      setIsSaveDialogOpen(false);
-      loadThemes();
+      if (editingThemeId) {
+        // Update existing theme
+        await updateTheme(editingThemeId, themeName, colors);
+        toast.success(`Theme "${themeName}" updated successfully`);
+      } else {
+        // Create new theme
+        await createTheme(themeName, colors);
+        toast.success(`Theme "${themeName}" created successfully`);
+      }
+
+      setIsEditorOpen(false);
+      setEditingThemeId(null);
+      await loadThemes();
     } catch (error) {
       toast.error("Failed to save theme");
       console.error(error);
     }
   };
 
-  const handleLoadTheme = async (themeId: string) => {
+  const handleActivateTheme = async (themeId: number) => {
     try {
-      const theme = themes.find((t) => t.id.toString() === themeId);
+      const theme = themes.find((t) => t.id === themeId);
       if (!theme) return;
 
-      const themeColors = JSON.parse(theme.colors);
+      const themeColors = typeof theme.colors === "string" ? JSON.parse(theme.colors) : theme.colors;
 
       // Update colors state
       setColors(themeColors);
@@ -169,33 +205,110 @@ export const ColorSchemeSettings = () => {
       });
 
       // Activate the theme
-      await activateTheme(theme.id);
-      setSelectedThemeId(themeId);
+      await activateTheme(themeId);
+      await loadThemes();
       toast.success(`Theme "${theme.name}" applied successfully`);
     } catch (error) {
-      toast.error("Failed to load theme");
+      toast.error("Failed to activate theme");
       console.error(error);
     }
   };
 
-  const handleDeleteTheme = async () => {
-    if (!selectedThemeId) {
-      toast.error("Please select a theme to delete");
-      return;
-    }
-
+  const handleDuplicateTheme = async (themeId: number) => {
     try {
-      await deleteTheme(parseInt(selectedThemeId));
+      const theme = themes.find((t) => t.id === themeId);
+      if (!theme) return;
+
+      const themeColors = typeof theme.colors === "string" ? JSON.parse(theme.colors) : theme.colors;
+      const newName = `${theme.name} (Copy)`;
+
+      await createTheme(newName, themeColors);
+      toast.success(`Theme duplicated as "${newName}"`);
+      await loadThemes();
+    } catch (error) {
+      toast.error("Failed to duplicate theme");
+      console.error(error);
+    }
+  };
+
+  const handleExportTheme = async (themeId: number) => {
+    try {
+      const exportData: ThemeExportData = await exportTheme(themeId);
+
+      // Create JSON file and trigger download
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${exportData.name.replace(/\s+/g, "_")}_theme.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success("Theme exported successfully");
+    } catch (error) {
+      toast.error("Failed to export theme");
+      console.error(error);
+    }
+  };
+
+  const handleImportTheme = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const themeData = JSON.parse(text);
+
+        await importTheme(themeData);
+        toast.success("Theme imported successfully");
+        await loadThemes();
+      } catch (error) {
+        toast.error("Failed to import theme. Invalid file format.");
+        console.error(error);
+      }
+    };
+    input.click();
+  };
+
+  const handleDeleteTheme = async (themeId: number) => {
+    try {
+      const theme = themes.find((t) => t.id === themeId);
+      if (!theme) return;
+
+      if (!confirm(`Are you sure you want to delete "${theme.name}"?`)) return;
+
+      await deleteTheme(themeId);
       toast.success("Theme deleted successfully");
-      setSelectedThemeId("");
-      loadThemes();
+      await loadThemes();
     } catch (error) {
       toast.error("Failed to delete theme");
       console.error(error);
     }
   };
 
+  const handleInstallLibraryTheme = async (theme: ThemeDefinition) => {
+    try {
+      await createTheme(theme.name, theme.colors);
+      toast.success(`Theme "${theme.name}" installed successfully`);
+      await loadThemes();
+      setIsLibraryOpen(false);
+    } catch (error) {
+      toast.error("Failed to install theme");
+      console.error(error);
+    }
+  };
+
   const handleResetToDefault = () => {
+    if (!confirm("Reset all colors to default? This will clear all custom changes.")) return;
+
     // Remove all custom color properties from root element
     COLOR_VARIABLES.forEach((variable) => {
       document.documentElement.style.removeProperty(variable.name);
@@ -203,7 +316,6 @@ export const ColorSchemeSettings = () => {
 
     // Reload colors from CSS
     loadCurrentColors();
-    setSelectedThemeId("");
     toast.success("Colors reset to default");
   };
 
@@ -217,6 +329,11 @@ export const ColorSchemeSettings = () => {
       return acc;
     },
     {} as Record<string, typeof COLOR_VARIABLES>,
+  );
+
+  // Filter themes by search query
+  const filteredThemes = themes.filter((theme) =>
+    theme.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (isLoading) {
@@ -235,105 +352,180 @@ export const ColorSchemeSettings = () => {
       <div>
         <h2 className="text-lg font-semibold">Color Scheme</h2>
         <p className="text-sm text-[var(--color-muted-foreground)]">
-          Customize the application's color palette. Changes are previewed in real-time.
+          Manage themes and customize your color palette. Changes are previewed in real-time.
         </p>
       </div>
 
-      {/* Theme Management */}
-      <div className="space-y-4 rounded-lg border border-[var(--color-dark-border)] bg-[var(--color-dark-bg-input)] p-4">
-        <h3 className="text-sm font-medium">Theme Management</h3>
-
-        <div className="flex gap-2">
-          <Select value={selectedThemeId} onValueChange={handleLoadTheme}>
-            <SelectTrigger className="flex-1 bg-[var(--color-dark-bg-button)]">
-              <SelectValue placeholder="Select a theme to load" />
-            </SelectTrigger>
-            <SelectContent>
-              {themes.map((theme) => (
-                <SelectItem key={theme.id} value={theme.id.toString()}>
-                  {theme.name} {theme.isActive && "(Active)"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleDeleteTheme}
-            disabled={!selectedThemeId}
-            className="border-[var(--color-dark-border)] bg-[var(--color-dark-bg-button)] hover:bg-[var(--color-dark-hover)]"
-            title="Delete selected theme"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="flex gap-2">
-          <Input
-            placeholder="Enter theme name..."
-            value={newThemeName}
-            onChange={(e) => setNewThemeName(e.target.value)}
-            className="flex-1 border-[var(--color-dark-border)] bg-[var(--color-dark-bg-button)]"
-          />
-          <Button
-            onClick={handleSaveTheme}
-            disabled={!newThemeName.trim()}
-            className="gap-2 bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90"
-          >
-            <Save className="h-4 w-4" />
-            Save Current
-          </Button>
-        </div>
-
+      {/* Quick Actions Bar */}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          onClick={handleCreateTheme}
+          className="gap-2 bg-[var(--color-primary)] hover:opacity-90"
+        >
+          <Plus className="w-4 h-4" />
+          Create Theme
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => setIsLibraryOpen(true)}
+          className="gap-2 border-[var(--color-dark-border)] bg-[var(--color-dark-bg-button)] hover:bg-[var(--color-dark-hover)]"
+        >
+          <Palette className="w-4 h-4" />
+          Theme Library
+        </Button>
+        <Button
+          variant="outline"
+          onClick={handleImportTheme}
+          className="gap-2 border-[var(--color-dark-border)] bg-[var(--color-dark-bg-button)] hover:bg-[var(--color-dark-hover)]"
+        >
+          <Upload className="w-4 h-4" />
+          Import
+        </Button>
         <Button
           variant="outline"
           onClick={handleResetToDefault}
-          className="w-full gap-2 border-[var(--color-dark-border)] bg-[var(--color-dark-bg-button)] hover:bg-[var(--color-dark-hover)]"
+          className="gap-2 border-[var(--color-dark-border)] bg-[var(--color-dark-bg-button)] hover:bg-[var(--color-dark-hover)]"
         >
-          <RefreshCw className="h-4 w-4" />
-          Reset to Default
+          <RefreshCw className="w-4 h-4" />
+          Reset
         </Button>
       </div>
 
-      {/* Color List */}
-      <div className="space-y-6">
-        {Object.entries(groupedColors).map(([category, variables]) => (
-          <div key={category} className="space-y-3">
-            <h3 className="text-sm font-medium text-[var(--color-muted-foreground)]">
-              {category}
-            </h3>
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-              {variables.map((variable) => {
-                const colorValue = colors[variable.name] || "#000000";
-                return (
-                  <button
-                    key={variable.name}
-                    onClick={() => handleColorClick(variable.name, colorValue)}
-                    className="flex items-center gap-3 rounded-md border border-[var(--color-dark-border)] bg-[var(--color-dark-bg-input)] p-3 text-left transition-colors hover:bg-[var(--color-dark-hover)]"
-                  >
-                    <div
-                      className="h-10 w-10 flex-shrink-0 rounded-md border border-[var(--color-dark-border)]"
-                      style={{ backgroundColor: colorValue }}
-                    />
-                    <div className="flex flex-col overflow-hidden">
-                      <span className="text-sm font-medium">
-                        {variable.label}
-                      </span>
-                      <span className="truncate font-mono text-xs text-[var(--color-muted-foreground)]">
-                        {variable.name}
-                      </span>
-                      <span className="font-mono text-xs text-[var(--color-muted-foreground)]">
-                        {colorValue}
-                      </span>
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Input
+          type="text"
+          placeholder="Search themes..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10 bg-[var(--color-dark-bg-input)] border-[var(--color-dark-border)] text-white"
+        />
+      </div>
+
+      {/* Theme Grid */}
+      <div>
+        <h3 className="text-sm font-medium text-[var(--color-muted-foreground)] mb-3">
+          Your Themes ({filteredThemes.length})
+        </h3>
+        {filteredThemes.length === 0 ? (
+          <div className="text-center py-12 border-2 border-dashed border-[var(--color-dark-border)] rounded-lg">
+            <p className="text-gray-400 mb-2">No themes found</p>
+            <p className="text-sm text-gray-500 mb-4">
+              {searchQuery ? "Try adjusting your search" : "Create your first theme to get started"}
+            </p>
+            {!searchQuery && (
+              <Button onClick={handleCreateTheme} className="gap-2">
+                <Plus className="w-4 h-4" />
+                Create Theme
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredThemes.map((theme) => (
+              <ThemeCard
+                key={theme.id}
+                theme={theme}
+                isActive={theme.id === activeTheme?.id}
+                onActivate={handleActivateTheme}
+                onEdit={handleEditTheme}
+                onDuplicate={handleDuplicateTheme}
+                onExport={handleExportTheme}
+                onDelete={handleDeleteTheme}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Color Editor Panel (shown when creating/editing) */}
+      {isEditorOpen && (
+        <div className="fixed inset-0 z-[999998] flex items-center justify-center"
+          style={{
+            backdropFilter: "blur(8px)",
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+          }}
+          onClick={() => setIsEditorOpen(false)}
+        >
+          <div
+            className="flex flex-col rounded-lg border-2 border-[var(--color-dark-border)] bg-[var(--color-dark-bg)] shadow-2xl max-h-[90vh] overflow-hidden w-full max-w-4xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-6 border-b border-[var(--color-dark-border)]">
+              <h3 className="text-xl font-semibold text-white">
+                {editingThemeId ? "Edit Theme" : "Create New Theme"}
+              </h3>
+              <p className="text-sm text-gray-400 mt-1">
+                Click on any color to customize it. Changes preview in real-time.
+              </p>
+            </div>
+
+            {/* Color Grid */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-6">
+                {Object.entries(groupedColors).map(([category, variables]) => (
+                  <div key={category} className="space-y-3">
+                    <h4 className="text-sm font-medium text-[var(--color-muted-foreground)]">
+                      {category}
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {variables.map((variable) => {
+                        const colorValue = colors[variable.name] || "#000000";
+                        return (
+                          <button
+                            key={variable.name}
+                            onClick={() => handleColorClick(variable.name, colorValue)}
+                            className="flex items-center gap-3 rounded-md border border-[var(--color-dark-border)] bg-[var(--color-dark-bg-input)] p-3 text-left transition-colors hover:bg-[var(--color-dark-hover)]"
+                          >
+                            <div
+                              className="h-10 w-10 flex-shrink-0 rounded-md border border-[var(--color-dark-border)]"
+                              style={{ backgroundColor: colorValue }}
+                            />
+                            <div className="flex flex-col overflow-hidden">
+                              <span className="text-sm font-medium">
+                                {variable.label}
+                              </span>
+                              <span className="truncate font-mono text-xs text-[var(--color-muted-foreground)]">
+                                {variable.name}
+                              </span>
+                              <span className="font-mono text-xs text-[var(--color-muted-foreground)]">
+                                {colorValue}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
-                  </button>
-                );
-              })}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-[var(--color-dark-border)] flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsEditorOpen(false);
+                  setEditingThemeId(null);
+                  loadCurrentColors();
+                }}
+                className="border-[var(--color-dark-border)] bg-[var(--color-dark-bg-button)] hover:bg-[var(--color-dark-hover)]"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveCurrentTheme}
+                className="bg-[var(--color-primary)] hover:opacity-90"
+              >
+                {editingThemeId ? "Update Theme" : "Save Theme"}
+              </Button>
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
       {/* Color Picker Modal */}
       {selectedColor && (
@@ -343,6 +535,15 @@ export const ColorSchemeSettings = () => {
           color={selectedColor.value}
           colorName={selectedColor.name}
           onColorChange={handleColorChange}
+          backgroundColor={colors["--background"] || "#0a0a0a"}
+        />
+      )}
+
+      {/* Theme Library Modal */}
+      {isLibraryOpen && (
+        <ThemeLibrary
+          onInstallTheme={handleInstallLibraryTheme}
+          onClose={() => setIsLibraryOpen(false)}
         />
       )}
     </div>
