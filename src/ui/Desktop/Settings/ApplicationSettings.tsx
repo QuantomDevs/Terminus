@@ -1,8 +1,25 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button.tsx";
 import { Switch } from "@/components/ui/switch.tsx";
-import { Github, MessageCircle, BookOpen } from "lucide-react";
-import { getSetting, saveSetting, isElectron } from "@/ui/main-axios.ts";
+import {
+  Github,
+  MessageCircle,
+  BookOpen,
+  Package,
+  Download,
+  ExternalLink,
+  Clock,
+  Database,
+  Check,
+  AlertCircle,
+} from "lucide-react";
+import {
+  getSetting,
+  saveSetting,
+  isElectron,
+  getSystemUptime,
+  getSystemHealth,
+} from "@/ui/main-axios.ts";
 import { useTranslation } from "react-i18next";
 import { useTabs } from "@/ui/Desktop/Navigation/Tabs/TabContext.tsx";
 
@@ -17,11 +34,48 @@ export function ApplicationSettings({ isAdmin }: ApplicationSettingsProps) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hideCloseButton, setHideCloseButton] = useState<boolean>(false);
   const [hideOptionsButton, setHideOptionsButton] = useState<boolean>(false);
+  const [uptime, setUptime] = useState<string>("Loading...");
+  const [healthStatus, setHealthStatus] = useState<string>("checking");
+  const [healthDetails, setHealthDetails] = useState<any>(null);
   const appVersion = "1.0.0";
 
   useEffect(() => {
     loadAllSettings();
+    loadSystemInfo();
+    // Refresh uptime every 60 seconds
+    const uptimeInterval = setInterval(loadUptime, 60000);
+    // Refresh health every 5 minutes
+    const healthInterval = setInterval(loadHealth, 300000);
+    return () => {
+      clearInterval(uptimeInterval);
+      clearInterval(healthInterval);
+    };
   }, []);
+
+  const loadSystemInfo = async () => {
+    await Promise.all([loadUptime(), loadHealth()]);
+  };
+
+  const loadUptime = async () => {
+    try {
+      const data = await getSystemUptime();
+      setUptime(data.uptimeFormatted);
+    } catch (error) {
+      console.error("Failed to load uptime:", error);
+      setUptime("Unknown");
+    }
+  };
+
+  const loadHealth = async () => {
+    try {
+      const data = await getSystemHealth();
+      setHealthStatus(data.status);
+      setHealthDetails(data);
+    } catch (error) {
+      console.error("Failed to load health:", error);
+      setHealthStatus("error");
+    }
+  };
 
   const loadAllSettings = async () => {
     try {
@@ -97,15 +151,78 @@ export function ApplicationSettings({ isAdmin }: ApplicationSettingsProps) {
     <div className="space-y-8">
       {/* Header Section */}
       <div className="space-y-6">
-        <div className="flex items-center space-x-4">
-          <img
-            src="/icon.svg"
-            alt="Terminus Logo"
-            className="w-16 h-16"
-          />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Terminus</h1>
-            <p className="text-sm text-gray-400">Version {appVersion}</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <img src="/icon.svg" alt="Terminus Logo" className="w-16 h-16" />
+            <div>
+              <h1 className="text-2xl font-bold text-white">Terminus</h1>
+              <p className="text-sm text-gray-400">Version {appVersion}</p>
+            </div>
+          </div>
+
+          {/* Overview Section */}
+          <div className="flex flex-col space-y-2">
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 px-3 py-1.5 rounded bg-[var(--color-sidebar-bg)] border border-[var(--color-dark-border)]">
+                <Package className="w-4 h-4 text-gray-400" />
+                <span className="text-sm text-gray-300">v{appVersion}</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex items-center space-x-2 bg-[var(--color-sidebar-bg)] border-[var(--color-dark-border)] text-gray-300 hover:bg-[var(--color-sidebar-accent)] hover:text-white"
+                onClick={() =>
+                  openExternalLink("https://github.com/Snenjih/Terminus/releases")
+                }
+              >
+                <ExternalLink className="w-3 h-3" />
+                <span>Updates & Releases</span>
+              </Button>
+            </div>
+
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 px-3 py-1.5 rounded bg-[var(--color-sidebar-bg)] border border-[var(--color-dark-border)]">
+                <Clock className="w-4 h-4 text-gray-400" />
+                <span className="text-sm text-gray-300">Uptime: {uptime}</span>
+              </div>
+              <div
+                className={`flex items-center space-x-2 px-3 py-1.5 rounded bg-[var(--color-sidebar-bg)] border ${
+                  healthStatus === "healthy"
+                    ? "border-green-500/50"
+                    : healthStatus === "unhealthy"
+                    ? "border-red-500/50"
+                    : "border-[var(--color-dark-border)]"
+                }`}
+              >
+                {healthStatus === "healthy" ? (
+                  <Check className="w-4 h-4 text-green-400" />
+                ) : (
+                  <AlertCircle
+                    className={`w-4 h-4 ${
+                      healthStatus === "unhealthy"
+                        ? "text-red-400"
+                        : "text-gray-400"
+                    }`}
+                  />
+                )}
+                <span
+                  className={`text-sm ${
+                    healthStatus === "healthy"
+                      ? "text-green-400"
+                      : healthStatus === "unhealthy"
+                      ? "text-red-400"
+                      : "text-gray-300"
+                  }`}
+                >
+                  Database{" "}
+                  {healthStatus === "healthy"
+                    ? "Healthy"
+                    : healthStatus === "unhealthy"
+                    ? "Unhealthy"
+                    : "Checking..."}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -114,7 +231,9 @@ export function ApplicationSettings({ isAdmin }: ApplicationSettingsProps) {
           <Button
             variant="outline"
             className="flex items-center space-x-2 bg-[var(--color-dark-bg)] border-[var(--color-dark-border)] text-gray-300 hover:bg-[var(--color-sidebar-accent)] hover:text-white"
-            onClick={() => openExternalLink("https://github.com/Snenjih/Terminus")}
+            onClick={() =>
+              openExternalLink("https://github.com/Snenjih/Terminus")
+            }
           >
             <Github className="w-4 h-4" />
             <span>GitHub</span>
@@ -130,7 +249,9 @@ export function ApplicationSettings({ isAdmin }: ApplicationSettingsProps) {
           <Button
             variant="outline"
             className="flex items-center space-x-2 bg-[var(--color-dark-bg)] border-[var(--color-dark-border)] text-gray-300 hover:bg-[var(--color-sidebar-accent)] hover:text-white"
-            onClick={() => openExternalLink("https://snenjih.de/docs/terminus")}
+            onClick={() =>
+              openExternalLink("https://snenjih.de/docs/terminus")
+            }
           >
             <BookOpen className="w-4 h-4" />
             <span>Docs</span>

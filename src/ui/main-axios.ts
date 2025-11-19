@@ -2091,6 +2091,22 @@ export async function completePasswordReset(
   }
 }
 
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<any> {
+  try {
+    const response = await authApi.post("/users/change-password", {
+      currentPassword,
+      newPassword,
+    });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "change password");
+    throw error; // Re-throw to allow error handling in component
+  }
+}
+
 export async function getOIDCAuthorizeUrl(): Promise<OIDCAuthorize> {
   try {
     const response = await authApi.get("/users/oidc/authorize");
@@ -2302,8 +2318,26 @@ export async function getVersionInfo(): Promise<any> {
 }
 
 // ============================================================================
-// DATABASE HEALTH
+// SYSTEM HEALTH & MONITORING
 // ============================================================================
+
+export async function getSystemUptime(): Promise<any> {
+  try {
+    const response = await authApi.get("/system/uptime");
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "fetch system uptime");
+  }
+}
+
+export async function getSystemHealth(): Promise<any> {
+  try {
+    const response = await authApi.get("/system/health");
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "check system health");
+  }
+}
 
 export async function getDatabaseHealth(): Promise<any> {
   try {

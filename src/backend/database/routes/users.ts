@@ -1397,6 +1397,137 @@ router.post("/complete-reset", async (req, res) => {
   }
 });
 
+// Route: Change password (authenticated users)
+// POST /users/change-password
+router.post("/change-password", authenticateJWT, async (req, res) => {
+  const userId = (req as any).userId;
+  const { currentPassword, newPassword } = req.body;
+
+  if (!isNonEmptyString(currentPassword) || !isNonEmptyString(newPassword)) {
+    return res.status(400).json({
+      error: "Current password and new password are required",
+    });
+  }
+
+  try {
+    // Load user from database
+    const user = await db.select().from(users).where(eq(users.id, userId));
+    if (!user || user.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Check if user is OIDC (they cannot change password locally)
+    if (user[0].is_oidc) {
+      return res.status(400).json({
+        error: "Cannot change password for OIDC users",
+      });
+    }
+
+    // Verify current password
+    const isValidPassword = await bcrypt.compare(
+      currentPassword,
+      user[0].password_hash,
+    );
+    if (!isValidPassword) {
+      authLogger.warn(
+        `Failed password change attempt for user: ${user[0].username}`,
+        {
+          operation: "password_change_failed",
+          userId,
+          username: user[0].username,
+          reason: "incorrect_current_password",
+        },
+      );
+      return res.status(401).json({ error: "Current password is incorrect" });
+    }
+
+    // Hash new password
+    const saltRounds = parseInt(process.env.SALT || "10", 10);
+    const password_hash = await bcrypt.hash(newPassword, saltRounds);
+
+    // Update password in database
+    await db
+      .update(users)
+      .set({ password_hash })
+      .where(eq(users.id, userId));
+
+    // Re-key user's DEK with new password
+    try {
+      const hasActiveSession = authManager.isUserUnlocked(userId);
+
+      if (hasActiveSession) {
+        const success = await authManager.resetUserPasswordWithPreservedDEK(
+          userId,
+          newPassword,
+        );
+
+        if (!success) {
+          authLogger.error(
+            `Failed to preserve DEK during password change for ${user[0].username}. Creating new DEK - data will be lost.`,
+            {
+              operation: "password_change_preserve_failed",
+              userId,
+              username: user[0].username,
+            },
+          );
+          await authManager.registerUser(userId, newPassword);
+          authManager.logoutUser(userId);
+          return res.status(500).json({
+            error:
+              "Password changed but failed to preserve encrypted data. Please log in again and re-enter your sensitive data.",
+          });
+        } else {
+          authLogger.success(
+            `Password changed successfully for user: ${user[0].username}. Data preserved using existing session.`,
+            {
+              operation: "password_change_success",
+              userId,
+              username: user[0].username,
+            },
+          );
+        }
+      } else {
+        // User is not logged in (shouldn't happen in normal flow, but handle it)
+        await authManager.registerUser(userId, newPassword);
+        authManager.logoutUser(userId);
+
+        authLogger.warn(
+          `Password changed for user: ${user[0].username} but no active session found. Data may be inaccessible.`,
+          {
+            operation: "password_change_no_session",
+            userId,
+            username: user[0].username,
+          },
+        );
+      }
+
+      res.json({
+        message: "Password changed successfully",
+      });
+    } catch (encryptionError) {
+      authLogger.error(
+        "Failed to re-key user data after password change",
+        encryptionError,
+        {
+          operation: "password_change_encryption_failed",
+          userId,
+          username: user[0].username,
+        },
+      );
+      return res.status(500).json({
+        error:
+          "Password changed but user data re-encryption failed. Please contact administrator.",
+      });
+    }
+  } catch (err) {
+    authLogger.error("Failed to change password", err, {
+      operation: "password_change_error",
+      userId,
+    });
+    res.status(500).json({ error: "Failed to change password" });
+  }
+});
+
 // Route: List all users (admin only)
 // GET /users/list
 router.get("/list", authenticateJWT, async (req, res) => {

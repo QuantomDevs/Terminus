@@ -9,6 +9,7 @@ import credentialsRoutes from "./routes/credentials.js";
 import settingsRoutes from "./routes/settings.js";
 import themesRoutes from "./routes/themes.js";
 import sessionRoutes from "./routes/session.js";
+import systemRoutes from "./routes/system.js";
 import cors from "cors";
 import fetch from "node-fetch";
 import fs from "fs";
@@ -1498,6 +1499,7 @@ app.use("/credentials", credentialsRoutes);
 app.use("/settings", settingsRoutes);
 app.use("/themes", themesRoutes);
 app.use("/session", sessionRoutes);
+app.use("/system", systemRoutes);
 
 app.use(
   (

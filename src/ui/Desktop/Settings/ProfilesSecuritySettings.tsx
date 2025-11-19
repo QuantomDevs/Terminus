@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator.tsx";
 import { User, Shield, AlertCircle, User2 } from "lucide-react";
 import { TOTPSetup } from "@/ui/Desktop/User/TOTPSetup.tsx";
 import { getUserInfo, logoutUser, deleteAccount, isElectron } from "@/ui/main-axios.ts";
-import { PasswordReset } from "@/ui/Desktop/User/PasswordReset.tsx";
+import { PasswordChange } from "@/ui/Desktop/User/PasswordChange.tsx";
 import { useTranslation } from "react-i18next";
 import { LanguageSwitcher } from "@/ui/Desktop/User/LanguageSwitcher.tsx";
 import { PasswordInput } from "@/components/ui/password-input.tsx";
@@ -226,12 +226,12 @@ export function ProfilesSecuritySettings({ username }: ProfilesSecuritySettingsP
           </TabsContent>
 
           <TabsContent value="security" className="space-y-4">
+            {!userInfo.is_oidc && <PasswordChange userInfo={userInfo} />}
+
             <TOTPSetup
               isEnabled={userInfo.totp_enabled}
               onStatusChange={handleTOTPStatusChange}
             />
-
-            {!userInfo.is_oidc && <PasswordReset userInfo={userInfo} />}
           </TabsContent>
         </Tabs>
       </div>
