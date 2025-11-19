@@ -174,13 +174,25 @@ function createApiInstance(
       logger.requestStart(method, fullUrl, context);
     }
 
+    // Add JWT token to Authorization header for both browser and Electron
+    // Token is stored in localStorage for both environments
+    const token = localStorage.getItem("jwt");
+
+    // Debug logging
+    if (process.env.NODE_ENV === "development") {
+      console.log("[AUTH DEBUG] Token from localStorage:", token ? "EXISTS" : "MISSING");
+      console.log("[AUTH DEBUG] Request URL:", fullUrl);
+    }
+
+    if (token) {
+      config.headers["Authorization"] = `Bearer ${token}`;
+    } else {
+      console.warn("[AUTH DEBUG] No JWT token found in localStorage!");
+    }
+
+    // Mark Electron requests
     if (isElectron()) {
       config.headers["X-Electron-App"] = "true";
-
-      const token = localStorage.getItem("jwt");
-      if (token) {
-        config.headers["Authorization"] = `Bearer ${token}`;
-      }
     }
 
     return config;
@@ -1963,8 +1975,17 @@ export async function loginUser(
   try {
     const response = await authApi.post("/users/login", { username, password });
 
+    // Store token in localStorage for both Electron and browser
+    // In Electron, token comes in response.data.token
+    // In browser, extract token from the Set-Cookie header (cookie already set by backend)
     if (isElectron() && response.data.token) {
       localStorage.setItem("jwt", response.data.token);
+    } else if (!isElectron()) {
+      // For browser, read the token from the cookie that was just set
+      const cookieToken = getCookie("jwt");
+      if (cookieToken) {
+        localStorage.setItem("jwt", cookieToken);
+      }
     }
 
     return {
