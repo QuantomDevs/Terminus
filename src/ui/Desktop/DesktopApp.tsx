@@ -15,7 +15,7 @@ import { ServerStatsPage } from "@/ui/Desktop/Apps/Server Stats/ServerStatsPage.
 import { Toaster } from "@/components/ui/sonner.tsx";
 import { VersionCheckModal } from "@/components/ui/version-check-modal.tsx";
 import { QuickConnectModal } from "@/components/ui/QuickConnectModal.tsx";
-import { getUserInfo, getCookie } from "@/ui/main-axios.ts";
+import { getUserInfo, getCookie, initializeDefaultSettings } from "@/ui/main-axios.ts";
 
 function AppContent() {
   const [view, setView] = useState<string>("homepage");
@@ -48,6 +48,11 @@ function AppContent() {
             setIsAuthenticated(false);
             setIsAdmin(false);
             setUsername(null);
+          } else {
+            // Initialize default settings after successful authentication
+            initializeDefaultSettings().catch((error) => {
+              console.error("Failed to initialize default settings:", error);
+            });
           }
         })
         .catch((err) => {

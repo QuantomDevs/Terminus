@@ -1,4 +1,6 @@
 import express from "express";
+import http from "http";
+import { WebSocketServer } from "ws";
 import net from "net";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -282,6 +284,7 @@ const app = express();
 app.use(
   cors({
     origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, Postman)
       if (!origin) return callback(null, true);
 
       const allowedOrigins = [
@@ -289,12 +292,16 @@ app.use(
         "http://localhost:3000",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
       ];
 
+      // Allow all HTTPS origins
       if (origin.startsWith("https://")) {
         return callback(null, true);
       }
 
+      // Allow all HTTP origins in development
       if (origin.startsWith("http://")) {
         return callback(null, true);
       }
@@ -306,15 +313,46 @@ app.use(
       callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
       "User-Agent",
       "X-Electron-App",
     ],
+    exposedHeaders: ["Content-Length", "X-Request-Id"],
+    maxAge: 86400, // 24 hours
   }),
 );
+
+// Ensure OPTIONS requests are handled
+app.options("*", cors());
+
+// Add explicit headers middleware to ensure CORS headers on all responses
+app.use((req, res, next) => {
+  // Set CORS headers explicitly
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, OPTIONS"
+  );
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, User-Agent, X-Electron-App"
+  );
+
+  // Handle preflight
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+
+  next();
+});
+
 app.use(cookieParser());
 app.use(express.json({ limit: "1mb" }));
 
@@ -1023,12 +1061,71 @@ export async function startServerStatsServer(): Promise<void> {
     const PORT = await findAvailablePort(preferredPort);
 
     return new Promise((resolve, reject) => {
-      app.listen(PORT, async () => {
+      // Create HTTP server from Express app
+      const httpServer = http.createServer(app);
+
+      // Create WebSocket server
+      const wss = new WebSocketServer({
+        server: httpServer,
+        path: "/",
+      });
+
+      // WebSocket connection handler
+      wss.on("connection", (ws, req) => {
+        statsLogger.info("[STATS WS] Client connected", {
+          operation: "websocket_connect",
+        });
+
+        // Set up ping-pong to keep connection alive
+        const pingInterval = setInterval(() => {
+          if (ws.readyState === ws.OPEN) {
+            ws.ping();
+          }
+        }, 30000); // Every 30 seconds
+
+        ws.on("pong", () => {
+          statsLogger.debug("[STATS WS] Received pong");
+        });
+
+        ws.on("message", (message) => {
+          try {
+            const data = JSON.parse(message.toString());
+            statsLogger.debug(`[STATS WS] Received:`, { data });
+
+            // Handle ping messages from client
+            if (data.type === "ping") {
+              ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
+            }
+          } catch (error) {
+            statsLogger.error("[STATS WS] Failed to parse message", error);
+          }
+        });
+
+        ws.on("close", () => {
+          statsLogger.info("[STATS WS] Client disconnected", {
+            operation: "websocket_disconnect",
+          });
+          clearInterval(pingInterval);
+        });
+
+        ws.on("error", (error) => {
+          statsLogger.error("[STATS WS] Error", error, {
+            operation: "websocket_error",
+          });
+          clearInterval(pingInterval);
+        });
+
+        // Send initial connection success message
+        ws.send(JSON.stringify({ type: "connected", timestamp: Date.now() }));
+      });
+
+      // Start server
+      httpServer.listen(PORT, async () => {
         try {
           // Register the port in the central registry
           portRegistry.setPort(SERVICE_NAMES.SERVER_STATS, PORT);
 
-          statsLogger.info(`Server Stats server started on port ${PORT}`, {
+          statsLogger.info(`[STATS] HTTP and WebSocket server on port ${PORT}`, {
             operation: "server_stats_server_started",
             port: PORT,
           });

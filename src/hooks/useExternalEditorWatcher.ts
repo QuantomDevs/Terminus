@@ -25,7 +25,12 @@ export function useExternalEditorWatcher() {
   const [activeEditors, setActiveEditors] = useState<Map<string, ActiveEditor>>(new Map());
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptsRef = useRef<number>(0);
+  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+
+  const maxReconnectAttempts = 5;
+  const reconnectDelay = 3000; // 3 seconds
 
   const connectWebSocket = useCallback(() => {
     // Clear any existing reconnect timeout
@@ -39,60 +44,86 @@ export function useExternalEditorWatcher() {
       wsRef.current.close();
     }
 
-    // Connect to WebSocket server
-    const ws = new WebSocket('ws://localhost:30005');
+    // Clear any existing ping interval
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current);
+      pingIntervalRef.current = null;
+    }
 
-    ws.onopen = () => {
-      console.log('External editor WebSocket connected');
-      setIsConnected(true);
+    try {
+      // Connect to WebSocket server
+      const ws = new WebSocket('ws://localhost:30005/');
 
-      // Send ping every 30 seconds to keep connection alive
-      const pingInterval = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'ping' }));
+      ws.onopen = () => {
+        console.log('[EDITOR WS] Connected');
+        setIsConnected(true);
+        reconnectAttemptsRef.current = 0; // Reset on successful connection
+
+        // Send ping every 30 seconds to keep connection alive
+        pingIntervalRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping' }));
+          } else {
+            if (pingIntervalRef.current) {
+              clearInterval(pingIntervalRef.current);
+              pingIntervalRef.current = null;
+            }
+          }
+        }, 30000);
+      };
+
+      ws.onmessage = async (event) => {
+        try {
+          const data: ExternalEditorEvent = JSON.parse(event.data);
+
+          // Ignore pong messages
+          if (data.type === 'pong') {
+            return;
+          }
+
+          console.log('[EDITOR WS] Message:', data);
+
+          if (data.type === 'file_changed') {
+            handleFileChanged(data);
+          } else if (data.type === 'editor_opened') {
+            console.log(`[EDITOR WS] Editor opened: ${data.remotePath}`);
+          }
+        } catch (error) {
+          console.error('[EDITOR WS] Failed to parse message:', error);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('[EDITOR WS] Error:', error);
+      };
+
+      ws.onclose = () => {
+        console.log('[EDITOR WS] Disconnected');
+        setIsConnected(false);
+
+        // Clear ping interval
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current);
+          pingIntervalRef.current = null;
+        }
+
+        // Attempt reconnection
+        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+          reconnectAttemptsRef.current++;
+          console.log(
+            `[EDITOR WS] Reconnecting (${reconnectAttemptsRef.current}/${maxReconnectAttempts})...`
+          );
+          reconnectTimeoutRef.current = setTimeout(connectWebSocket, reconnectDelay);
         } else {
-          clearInterval(pingInterval);
+          console.error('[EDITOR WS] Max reconnect attempts reached');
         }
-      }, 30000);
-    };
+      };
 
-    ws.onmessage = async (event) => {
-      try {
-        const data: ExternalEditorEvent = JSON.parse(event.data);
-
-        // Ignore pong messages
-        if (data.type === 'pong') {
-          return;
-        }
-
-        console.log('External editor event received:', data);
-
-        if (data.type === 'file_changed') {
-          handleFileChanged(data);
-        } else if (data.type === 'editor_opened') {
-          console.log(`Editor opened: ${data.remotePath}`);
-        }
-      } catch (error) {
-        console.error('Failed to parse WebSocket message:', error);
-      }
-    };
-
-    ws.onerror = (error) => {
-      console.error('External editor WebSocket error:', error);
-    };
-
-    ws.onclose = () => {
-      console.log('External editor WebSocket disconnected');
+      wsRef.current = ws;
+    } catch (error) {
+      console.error('[EDITOR WS] Connection error:', error);
       setIsConnected(false);
-
-      // Attempt to reconnect after 5 seconds
-      reconnectTimeoutRef.current = setTimeout(() => {
-        console.log('Attempting to reconnect external editor WebSocket...');
-        connectWebSocket();
-      }, 5000);
-    };
-
-    wsRef.current = ws;
+    }
   }, []);
 
   const handleFileChanged = useCallback(async (event: ExternalEditorEvent) => {
@@ -177,6 +208,11 @@ export function useExternalEditorWatcher() {
       // Cleanup on unmount
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+        pingIntervalRef.current = null;
       }
       if (wsRef.current) {
         wsRef.current.close();

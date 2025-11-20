@@ -138,6 +138,10 @@ import { systemLogger, versionLogger } from "./utils/logger.js";
       await localPtyModule.startLocalTerminalServer();
     }
 
+    // Perform startup checks to verify all services are running
+    const startupChecksModule = await import("./utils/startup-checks.js");
+    await startupChecksModule.performStartupChecks();
+
     // Graceful shutdown handler
     async function gracefulShutdown(signal: string) {
       systemLogger.info(

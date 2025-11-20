@@ -1,5 +1,5 @@
 import express from "express";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { getDb } from "../db/index.js";
 import { settings } from "../db/schema.js";
 import { AuthManager } from "../../utils/auth-manager.js";
@@ -10,25 +10,83 @@ const router = express.Router();
 const authManager = AuthManager.getInstance();
 const authenticateJWT = authManager.createAuthMiddleware();
 
+// Default settings configuration
+const DEFAULT_SETTINGS: Record<string, string> = {
+  // Terminal settings
+  terminal_restore_sessions: "true",
+  terminal_auto_open_local: "false",
+  terminal_font_size: "14",
+  terminal_cursor_style: "block",
+  terminal_cursor_blink: "false",
+  terminal_letter_spacing: "0",
+  terminal_line_height: "1.2",
+  terminal_font_family: "Caskaydia Cove Nerd Font Mono",
+  terminal_scrollback_lines: "10000",
+
+  // File Manager display settings
+  file_manager_show_type: "true",
+  file_manager_show_size: "true",
+  file_manager_show_modified: "true",
+  file_manager_show_permissions: "false",
+  file_manager_show_owner: "false",
+  file_manager_display_size: "comfortable",
+  file_manager_design: "explorer",
+};
+
+// Helper function to get or create settings with defaults
+async function getOrCreateSetting(
+  key: string
+): Promise<{ key: string; value: string } | null> {
+  const db = getDb();
+
+  // Try to get existing setting
+  const existing = await db
+    .select()
+    .from(settings)
+    .where(eq(settings.key, key))
+    .get();
+
+  if (existing) {
+    return existing;
+  }
+
+  // If no setting exists and we have a default, create it
+  if (DEFAULT_SETTINGS[key] !== undefined) {
+    const newSetting = await db
+      .insert(settings)
+      .values({
+        key,
+        value: DEFAULT_SETTINGS[key],
+      })
+      .returning()
+      .get();
+
+    apiLogger.info(`Created default setting: ${key} = ${DEFAULT_SETTINGS[key]}`, {
+      operation: "create_default_setting",
+      key,
+    });
+
+    return newSetting;
+  }
+
+  return null;
+}
+
 // Route: Get a specific setting by key
 // GET /settings/:key
 router.get("/:key", authenticateJWT, async (req: Request, res: Response) => {
   const { key } = req.params;
 
   try {
-    const db = getDb();
-    const setting = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, key));
+    const setting = await getOrCreateSetting(key);
 
-    if (!setting || setting.length === 0) {
+    if (!setting) {
       return res.status(404).json({ error: "Setting not found" });
     }
 
     res.json({
-      key: setting[0].key,
-      value: setting[0].value,
+      key: setting.key,
+      value: setting.value,
     });
   } catch (err) {
     apiLogger.error("Failed to get setting", err, {
@@ -132,6 +190,45 @@ router.delete("/:key", authenticateJWT, async (req: Request, res: Response) => {
       key,
     });
     res.status(500).json({ error: "Failed to delete setting" });
+  }
+});
+
+// Route: Initialize all default settings
+// POST /settings/initialize-defaults
+router.post("/initialize-defaults", authenticateJWT, async (req: Request, res: Response) => {
+  try {
+    const db = getDb();
+    const initialized: string[] = [];
+
+    for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
+      // Check if setting already exists
+      const existing = await db
+        .select()
+        .from(settings)
+        .where(eq(settings.key, key))
+        .get();
+
+      if (!existing) {
+        await db.insert(settings).values({ key, value });
+        initialized.push(key);
+      }
+    }
+
+    apiLogger.success(`Initialized ${initialized.length} default settings`, {
+      operation: "initialize_defaults",
+      initialized,
+    });
+
+    res.json({
+      success: true,
+      initialized,
+      message: `Initialized ${initialized.length} default settings`,
+    });
+  } catch (err) {
+    apiLogger.error("Failed to initialize defaults", err, {
+      operation: "initialize_defaults",
+    });
+    res.status(500).json({ error: "Failed to initialize defaults" });
   }
 });
 

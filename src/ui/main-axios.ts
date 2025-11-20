@@ -268,6 +268,25 @@ function createApiInstance(
 
       const logger = getLoggerForService(serviceName);
 
+      // Additional console logging for specific error types
+      if (status === 404) {
+        console.warn(
+          `[API] 404 Not Found: ${method} ${fullUrl}`,
+          {
+            baseURL: error.config?.baseURL,
+            params: error.config?.params,
+          }
+        );
+      } else if (error.code === "ERR_NETWORK" || status === 0 || !status) {
+        console.error(
+          `[API] Network Error: ${method} ${fullUrl}`,
+          {
+            baseURL: error.config?.baseURL,
+            message: message,
+          }
+        );
+      }
+
       if (process.env.NODE_ENV === "development") {
         if (status === 401) {
           // Suppress auth error logs - they are expected when user is not logged in
@@ -1975,18 +1994,30 @@ export async function loginUser(
   try {
     const response = await authApi.post("/users/login", { username, password });
 
+    console.log("[LOGIN DEBUG] Response data:", response.data);
+    console.log("[LOGIN DEBUG] isElectron:", isElectron());
+
     // Store token in localStorage for both Electron and browser
     // In Electron, token comes in response.data.token
     // In browser, extract token from the Set-Cookie header (cookie already set by backend)
     if (isElectron() && response.data.token) {
+      console.log("[LOGIN DEBUG] Storing token from response.data.token (Electron)");
       localStorage.setItem("jwt", response.data.token);
     } else if (!isElectron()) {
       // For browser, read the token from the cookie that was just set
       const cookieToken = getCookie("jwt");
+      console.log("[LOGIN DEBUG] Cookie token:", cookieToken ? "EXISTS" : "MISSING");
       if (cookieToken) {
+        console.log("[LOGIN DEBUG] Storing token from cookie (Browser)");
         localStorage.setItem("jwt", cookieToken);
+      } else {
+        console.warn("[LOGIN DEBUG] No cookie token found! Checking document.cookie...");
+        console.log("[LOGIN DEBUG] document.cookie:", document.cookie);
       }
     }
+
+    const storedToken = localStorage.getItem("jwt");
+    console.log("[LOGIN DEBUG] Token stored in localStorage:", storedToken ? "YES" : "NO");
 
     return {
       token: response.data.token || "cookie-based",
@@ -2007,8 +2038,24 @@ export async function logoutUser(): Promise<{
 }> {
   try {
     const response = await authApi.post("/users/logout");
+
+    // Clear JWT token from localStorage
+    localStorage.removeItem("jwt");
+    console.log("[LOGOUT DEBUG] Token removed from localStorage");
+
+    // Clear cookie if in browser
+    if (!isElectron()) {
+      document.cookie = "jwt=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      console.log("[LOGOUT DEBUG] Cookie cleared");
+    }
+
     return response.data;
   } catch (error) {
+    // Even if logout fails, clear local tokens
+    localStorage.removeItem("jwt");
+    if (!isElectron()) {
+      document.cookie = "jwt=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    }
     handleApiError(error, "logout user");
   }
 }
@@ -2672,6 +2719,26 @@ export async function deleteSetting(key: string): Promise<{ message: string }> {
     return response.data;
   } catch (error) {
     handleApiError(error, "delete setting");
+  }
+}
+
+/**
+ * Initialize all default settings for the current user
+ */
+export async function initializeDefaultSettings(): Promise<{
+  success: boolean;
+  initialized: string[];
+  message: string;
+}> {
+  try {
+    const response = await authApi.post<{
+      success: boolean;
+      initialized: string[];
+      message: string;
+    }>("/settings/initialize-defaults");
+    return response.data;
+  } catch (error) {
+    handleApiError(error, "initialize default settings");
   }
 }
 

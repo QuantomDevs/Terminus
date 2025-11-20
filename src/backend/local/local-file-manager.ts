@@ -667,11 +667,45 @@ app.post("/validateEditorPath", async (req, res) => {
 
 const PORT = process.env.LOCAL_FILE_PORT || 30006;
 
+// Catch-all for debugging 404s
+app.use((req, res, next) => {
+  fileLogger.error(`[LOCAL FILE MANAGER] 404 - ${req.method} ${req.url}`, {
+    operation: "route_not_found",
+    method: req.method,
+    url: req.url,
+    path: req.path,
+  });
+  res.status(404).json({
+    error: "Route not found",
+    method: req.method,
+    url: req.url,
+    hint: "Local file manager routes should start with /local/",
+  });
+});
+
 function startServer() {
   return new Promise<void>((resolve, reject) => {
     try {
       app.listen(PORT, () => {
-        fileLogger.info(`Local file manager server listening on port ${PORT}`);
+        fileLogger.info(`[LOCAL FILE MANAGER] Server listening on port ${PORT}`, {
+          operation: "server_start",
+          port: PORT,
+        });
+        fileLogger.info(`[LOCAL FILE MANAGER] Routes registered:`, {
+          operation: "routes_info",
+        });
+        fileLogger.info(`  GET /local/listFiles`);
+        fileLogger.info(`  POST /local/createFile`);
+        fileLogger.info(`  POST /local/createFolder`);
+        fileLogger.info(`  DELETE /local/deleteItem`);
+        fileLogger.info(`  POST /local/renameItem`);
+        fileLogger.info(`  POST /local/moveItem`);
+        fileLogger.info(`  POST /local/copyItem`);
+        fileLogger.info(`  GET /local/downloadFile`);
+        fileLogger.info(`  POST /local/uploadFile`);
+        fileLogger.info(`  GET /local/readFile`);
+        fileLogger.info(`  POST /openInExternalEditor`);
+        fileLogger.info(`  POST /validateEditorPath`);
         resolve();
       });
     } catch (error) {

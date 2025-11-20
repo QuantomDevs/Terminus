@@ -54,6 +54,7 @@ import {
   addFolderShortcut,
   getPinnedFiles,
   getSetting,
+  saveSetting,
   readRemoteFileContent,
   listLocalFiles,
   createLocalFile,
