@@ -21,6 +21,15 @@ import {
   systemLogger,
   type LogContext,
 } from "../lib/frontend-logger.js";
+import {
+  getAuthToken,
+  setAuthToken,
+  clearAuthToken,
+  forceLogout,
+  validateAuthState,
+  handleAuthError,
+} from "../utils/auth-utils.js";
+import { toast } from "sonner";
 
 interface FileManagerOperation {
   name: string;
@@ -175,19 +184,29 @@ function createApiInstance(
     }
 
     // Add JWT token to Authorization header for both browser and Electron
-    // Token is stored in localStorage for both environments
-    const token = localStorage.getItem("jwt");
+    const token = getAuthToken();
+
+    // Check if this is a login/registration endpoint (these don't need auth)
+    const isAuthEndpoint =
+      url?.includes("/users/login") ||
+      url?.includes("/users/register") ||
+      url?.includes("/users/oidc") ||
+      url?.includes("/users/setup-required") ||
+      url?.includes("/users/registration-allowed") ||
+      url?.includes("/users/count");
 
     // Debug logging
     if (process.env.NODE_ENV === "development") {
-      console.log("[AUTH DEBUG] Token from localStorage:", token ? "EXISTS" : "MISSING");
-      console.log("[AUTH DEBUG] Request URL:", fullUrl);
+      console.log("[AUTH DEBUG] Token:", token ? "EXISTS" : "MISSING");
+      console.log("[AUTH DEBUG] Request:", fullUrl);
+      console.log("[AUTH DEBUG] Is auth endpoint:", isAuthEndpoint);
     }
 
     if (token) {
       config.headers["Authorization"] = `Bearer ${token}`;
-    } else {
-      console.warn("[AUTH DEBUG] No JWT token found in localStorage!");
+    } else if (!isAuthEndpoint) {
+      // Token is missing for protected endpoint - this should not happen
+      console.error("[AUTH DEBUG] No token for protected endpoint:", fullUrl);
     }
 
     // Mark Electron requests
@@ -305,25 +324,29 @@ function createApiInstance(
         }
       }
 
+      // Handle 401 Unauthorized - force logout
       if (status === 401) {
-        const errorCode = (error.response?.data as any)?.code;
-        const isSessionExpired = errorCode === "SESSION_EXPIRED";
+        const isLoginEndpoint = url?.includes("/users/login");
+        const hasToken = !!getAuthToken();
 
-        if (isElectron()) {
-          localStorage.removeItem("jwt");
-        } else {
-          localStorage.removeItem("jwt");
+        // Only force logout if:
+        // 1. Not a login endpoint (invalid credentials shouldn't trigger logout)
+        // 2. User had a token (means they were logged in but session expired)
+        if (!isLoginEndpoint && hasToken) {
+          console.warn("[AUTH] 401 Unauthorized with valid token - forcing logout");
+
+          // Use centralized force logout
+          forceLogout(
+            "Your session has expired or is invalid. Please log in again.",
+            true,
+          );
+        } else if (!isLoginEndpoint && !hasToken) {
+          // User tried to access protected resource without token
+          // This is expected when not logged in - don't show error toast
+          console.warn("[AUTH] 401 Unauthorized without token - user not logged in");
         }
 
-        if (isSessionExpired && typeof window !== "undefined") {
-          console.warn("Session expired - please log in again");
-
-          import("sonner").then(({ toast }) => {
-            toast.warning("Session expired - please log in again");
-          });
-
-          setTimeout(() => window.location.reload(), 100);
-        }
+        return Promise.reject(error);
       }
 
       return Promise.reject(error);
@@ -1994,30 +2017,48 @@ export async function loginUser(
   try {
     const response = await authApi.post("/users/login", { username, password });
 
-    console.log("[LOGIN DEBUG] Response data:", response.data);
-    console.log("[LOGIN DEBUG] isElectron:", isElectron());
+    console.log("[LOGIN] Response received:", response.data);
 
-    // Store token in localStorage for both Electron and browser
-    // In Electron, token comes in response.data.token
-    // In browser, extract token from the Set-Cookie header (cookie already set by backend)
+    // Store token using centralized utility
     if (isElectron() && response.data.token) {
-      console.log("[LOGIN DEBUG] Storing token from response.data.token (Electron)");
-      localStorage.setItem("jwt", response.data.token);
+      // Electron: token comes in response body
+      console.log("[LOGIN] Storing token from response (Electron)");
+      setAuthToken(response.data.token);
     } else if (!isElectron()) {
-      // For browser, read the token from the cookie that was just set
+      // Browser: token is set as cookie by backend, copy to localStorage
       const cookieToken = getCookie("jwt");
-      console.log("[LOGIN DEBUG] Cookie token:", cookieToken ? "EXISTS" : "MISSING");
+      console.log("[LOGIN] Cookie token:", cookieToken ? "EXISTS" : "MISSING");
+
       if (cookieToken) {
-        console.log("[LOGIN DEBUG] Storing token from cookie (Browser)");
-        localStorage.setItem("jwt", cookieToken);
+        console.log("[LOGIN] Storing token from cookie (Browser)");
+        setAuthToken(cookieToken);
       } else {
-        console.warn("[LOGIN DEBUG] No cookie token found! Checking document.cookie...");
-        console.log("[LOGIN DEBUG] document.cookie:", document.cookie);
+        // Fallback: check if token was sent in response body (shouldn't happen in browser)
+        if (response.data.token) {
+          console.log("[LOGIN] Storing token from response body (Browser fallback)");
+          setAuthToken(response.data.token);
+        } else {
+          console.error("[LOGIN] No token found in cookie or response!");
+          toast.error("Login Error", {
+            description: "Authentication token not received. Please try again.",
+          });
+        }
       }
     }
 
-    const storedToken = localStorage.getItem("jwt");
-    console.log("[LOGIN DEBUG] Token stored in localStorage:", storedToken ? "YES" : "NO");
+    // Verify token was stored
+    const storedToken = getAuthToken();
+    if (!storedToken) {
+      console.error("[LOGIN] Token was NOT stored successfully!");
+      toast.error("Login Error", {
+        description: "Failed to save authentication. Please try again.",
+      });
+    } else {
+      console.log("[LOGIN] Token successfully stored");
+      toast.success("Login Successful", {
+        description: `Welcome back, ${response.data.username}!`,
+      });
+    }
 
     return {
       token: response.data.token || "cookie-based",
@@ -2028,7 +2069,13 @@ export async function loginUser(
       temp_token: response.data.temp_token,
     };
   } catch (error) {
-    handleApiError(error, "login user");
+    console.error("[LOGIN] Login failed:", error);
+    const message = (error as any)?.response?.data?.error || "Login failed";
+    toast.error("Login Failed", {
+      description: message,
+      duration: 5000,
+    });
+    throw error;
   }
 }
 
@@ -2037,26 +2084,44 @@ export async function logoutUser(): Promise<{
   message: string;
 }> {
   try {
+    console.log("[LOGOUT] Logging out user...");
+
+    // Call logout endpoint
     const response = await authApi.post("/users/logout");
 
-    // Clear JWT token from localStorage
-    localStorage.removeItem("jwt");
-    console.log("[LOGOUT DEBUG] Token removed from localStorage");
+    // Clear all auth data using centralized utility
+    clearAuthToken();
 
-    // Clear cookie if in browser
-    if (!isElectron()) {
-      document.cookie = "jwt=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-      console.log("[LOGOUT DEBUG] Cookie cleared");
-    }
+    console.log("[LOGOUT] Logout successful");
+
+    // Show success toast
+    toast.success("Logged Out", {
+      description: "You have been successfully logged out.",
+    });
+
+    // Reload page to show login screen
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
 
     return response.data;
   } catch (error) {
-    // Even if logout fails, clear local tokens
-    localStorage.removeItem("jwt");
-    if (!isElectron()) {
-      document.cookie = "jwt=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    }
-    handleApiError(error, "logout user");
+    console.error("[LOGOUT] Logout failed:", error);
+
+    // Even if logout fails on server, clear local tokens
+    clearAuthToken();
+
+    // Show error toast
+    toast.error("Logout Error", {
+      description: "There was an error logging out, but your session has been cleared locally.",
+    });
+
+    // Still reload to show login screen
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
+
+    throw error;
   }
 }
 

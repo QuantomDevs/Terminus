@@ -325,9 +325,6 @@ app.use(
   }),
 );
 
-// Ensure OPTIONS requests are handled
-app.options("*", cors());
-
 // Add explicit headers middleware to ensure CORS headers on all responses
 app.use((req, res, next) => {
   // Set CORS headers explicitly
