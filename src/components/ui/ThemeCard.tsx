@@ -1,8 +1,14 @@
-import React, { useState } from "react";
+import React from "react";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
-import { Check, Pencil, Copy, Download, Trash2 } from "lucide-react";
+import { Check, Pencil, Download } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip.tsx";
 
 export interface ColorTheme {
   id: number;
@@ -10,8 +16,9 @@ export interface ColorTheme {
   colors: Record<string, string> | string;
   isActive: boolean;
   userId: string;
-  createdAt: number;
-  updatedAt: number;
+  createdAt: string | number;
+  updatedAt: string | number;
+  author?: string;
 }
 
 interface ThemeCardProps {
@@ -29,178 +36,215 @@ export function ThemeCard({
   isActive,
   onActivate,
   onEdit,
-  onDuplicate,
   onExport,
-  onDelete,
 }: ThemeCardProps) {
-  const [isHovered, setIsHovered] = useState(false);
-
   // Parse colors if stored as JSON string
   const colors =
     typeof theme.colors === "string"
       ? JSON.parse(theme.colors)
       : theme.colors;
 
-  // Extract key colors for swatches (first 8)
-  const keyColors = [
-    colors["--background"] || colors.background,
-    colors["--foreground"] || colors.foreground,
-    colors["--primary"] || colors.primary,
-    colors["--secondary"] || colors.secondary,
-    colors["--accent"] || colors.accent,
-    colors["--destructive"] || colors.destructive,
-    colors["--muted"] || colors.muted,
-    colors["--border"] || colors.border,
-  ].filter(Boolean);
+  // Color variables with labels for tooltips
+  const colorVariables = [
+    { name: "--background", label: "Background" },
+    { name: "--foreground", label: "Foreground" },
+    { name: "--primary", label: "Primary" },
+    { name: "--secondary", label: "Secondary" },
+    { name: "--accent", label: "Accent" },
+    { name: "--destructive", label: "Destructive" },
+    { name: "--muted", label: "Muted" },
+    { name: "--border", label: "Border" },
+    { name: "--card", label: "Card" },
+    { name: "--input", label: "Input" },
+    { name: "--ring", label: "Focus Ring" },
+    { name: "--color-dark-bg", label: "Dark BG" },
+  ];
 
   return (
     <div
       className={cn(
-        "relative rounded-lg border-2 transition-all duration-200 cursor-pointer group",
-        "bg-[var(--color-sidebar-bg)] hover:shadow-lg",
+        "relative rounded-lg border-2 transition-all duration-200",
+        "bg-[var(--color-sidebar-bg)] hover:shadow-lg overflow-hidden",
         isActive
           ? "border-[var(--color-primary)] shadow-md"
           : "border-[var(--color-dark-border)] hover:border-[var(--color-primary)]/50"
       )}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onClick={() => !isActive && onActivate(theme.id)}
     >
-      {/* Active Badge */}
-      {isActive && (
-        <div className="absolute top-3 right-3 z-10">
-          <Badge className="bg-[var(--color-primary)] text-white flex items-center gap-1">
-            <Check className="w-3 h-3" />
-            Active
-          </Badge>
-        </div>
-      )}
+      {/* Theme Preview - Mini UI */}
+      <div
+        className="relative h-32 p-3 overflow-hidden"
+        style={{
+          backgroundColor: colors["--background"] || "#0a0a0a",
+          color: colors["--foreground"] || "#ffffff",
+        }}
+      >
+        {/* Active Badge */}
+        {isActive && (
+          <div className="absolute top-2 right-2 z-10">
+            <Badge className="bg-[var(--color-primary)] text-white flex items-center gap-1 text-xs">
+              <Check className="w-3 h-3" />
+              Active
+            </Badge>
+          </div>
+        )}
 
-      {/* Action Buttons Overlay */}
-      {isHovered && !isActive && (
-        <div className="absolute inset-0 bg-black/60 rounded-lg flex items-center justify-center gap-2 z-10">
-          <Button
-            size="sm"
-            variant="outline"
-            className="bg-white/10 border-white/30 text-white hover:bg-white/20"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(theme.id);
-            }}
-            title="Edit theme"
+        {/* Mini UI Preview */}
+        <div className="space-y-1.5">
+          {/* Mini navbar */}
+          <div
+            className="h-5 rounded flex items-center px-2 gap-1"
+            style={{ backgroundColor: colors["--card"] || colors["--color-dark-bg-darker"] || "#1a1a1a" }}
           >
-            <Pencil className="w-4 h-4" />
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="bg-white/10 border-white/30 text-white hover:bg-white/20"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDuplicate(theme.id);
-            }}
-            title="Duplicate theme"
-          >
-            <Copy className="w-4 h-4" />
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="bg-white/10 border-white/30 text-white hover:bg-white/20"
-            onClick={(e) => {
-              e.stopPropagation();
-              onExport(theme.id);
-            }}
-            title="Export theme"
-          >
-            <Download className="w-4 h-4" />
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="bg-red-500/20 border-red-500/50 text-red-300 hover:bg-red-500/30"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(theme.id);
-            }}
-            title="Delete theme"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        </div>
-      )}
-
-      {/* Card Content */}
-      <div className="p-4 space-y-3">
-        {/* Theme Name */}
-        <h3 className="text-lg font-semibold text-white truncate pr-20">
-          {theme.name}
-        </h3>
-
-        {/* Color Swatches */}
-        <div className="flex gap-1.5">
-          {keyColors.slice(0, 8).map((color, index) => (
+            <div className="w-1 h-1 rounded-full" style={{ backgroundColor: colors["--primary"] || "#3b82f6" }} />
+            <div className="w-1 h-1 rounded-full" style={{ backgroundColor: colors["--secondary"] || "#6b7280" }} />
+            <div className="w-1 h-1 rounded-full" style={{ backgroundColor: colors["--accent"] || "#8b5cf6" }} />
+          </div>
+          {/* Mini content area */}
+          <div className="flex gap-1.5">
             <div
-              key={index}
-              className="w-10 h-10 rounded border-2 border-[var(--color-dark-border)] flex-shrink-0"
+              className="flex-1 h-14 rounded border"
               style={{
-                backgroundColor: color,
+                backgroundColor: colors["--card"] || colors["--color-dark-bg"] || "#0f0f0f",
+                borderColor: colors["--border"] || "#27272a",
               }}
-              title={color}
-            />
-          ))}
-        </div>
-
-        {/* Metadata */}
-        <div className="flex items-center justify-between text-xs text-gray-400">
-          <span>{Object.keys(colors).length} colors</span>
-          <span>
-            {new Date(theme.updatedAt || theme.createdAt).toLocaleDateString()}
-          </span>
+            >
+              <div className="p-1.5 space-y-1">
+                <div className="h-1.5 rounded" style={{ backgroundColor: colors["--primary"] || "#3b82f6", width: "60%" }} />
+                <div className="h-1 rounded" style={{ backgroundColor: colors["--muted"] || "#71717a", width: "40%" }} />
+                <div className="h-1 rounded" style={{ backgroundColor: colors["--muted"] || "#71717a", width: "80%" }} />
+              </div>
+            </div>
+            <div className="w-12 space-y-1">
+              <div
+                className="h-6 rounded flex items-center justify-center text-xs font-medium"
+                style={{
+                  backgroundColor: colors["--primary"] || "#3b82f6",
+                  color: colors["--primary-foreground"] || "#ffffff",
+                }}
+              >
+                <div className="w-3 h-0.5 rounded" style={{ backgroundColor: "currentColor" }} />
+              </div>
+              <div
+                className="h-6 rounded flex items-center justify-center"
+                style={{
+                  backgroundColor: colors["--secondary"] || "#27272a",
+                  color: colors["--secondary-foreground"] || "#ffffff",
+                }}
+              >
+                <div className="w-3 h-0.5 rounded" style={{ backgroundColor: "currentColor" }} />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Active Theme Actions (shown when active) */}
-      {isActive && (
-        <div className="border-t border-[var(--color-dark-border)] p-3 flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1 text-xs"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(theme.id);
-            }}
-          >
-            <Pencil className="w-3 h-3 mr-1" />
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1 text-xs"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDuplicate(theme.id);
-            }}
-          >
-            <Copy className="w-3 h-3 mr-1" />
-            Duplicate
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1 text-xs"
-            onClick={(e) => {
-              e.stopPropagation();
-              onExport(theme.id);
-            }}
-          >
-            <Download className="w-3 h-3 mr-1" />
-            Export
-          </Button>
+      {/* Theme Info */}
+      <div className="p-3 border-t border-[var(--color-dark-border)]">
+        <div className="mb-2">
+          <h3 className="text-sm font-semibold text-white truncate">
+            {theme.name}
+          </h3>
+          {theme.author && (
+            <p className="text-xs text-gray-400 truncate">
+              by {theme.author}
+            </p>
+          )}
         </div>
-      )}
+
+        {/* Color Palette with Tooltips */}
+        <TooltipProvider delayDuration={200}>
+          <div className="flex flex-wrap gap-1 mb-3">
+            {colorVariables.slice(0, 12).map((variable) => {
+              const colorValue = colors[variable.name];
+              if (!colorValue) return null;
+
+              return (
+                <Tooltip key={variable.name}>
+                  <TooltipTrigger asChild>
+                    <div
+                      className="w-6 h-6 rounded border border-[var(--color-dark-border)] cursor-help transition-transform hover:scale-110"
+                      style={{ backgroundColor: colorValue }}
+                    />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="bg-[var(--color-dark-bg)] border-[var(--color-dark-border)]">
+                    <p className="text-xs font-medium">{variable.label}</p>
+                    <p className="text-xs text-gray-400 font-mono">{colorValue}</p>
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </div>
+        </TooltipProvider>
+
+        {/* Action Buttons */}
+        <div className="flex gap-2">
+          {isActive ? (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(theme.id);
+                }}
+              >
+                <Pencil className="w-3 h-3 mr-1" />
+                Edit
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onExport(theme.id);
+                }}
+              >
+                <Download className="w-3 h-3 mr-1" />
+                Export
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                size="sm"
+                className="flex-1 text-xs bg-[var(--color-primary)] hover:opacity-90"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onActivate(theme.id);
+                }}
+              >
+                Apply
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(theme.id);
+                }}
+                title="Edit theme"
+              >
+                <Pencil className="w-4 h-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onExport(theme.id);
+                }}
+                title="Export theme"
+              >
+                <Download className="w-4 h-4" />
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

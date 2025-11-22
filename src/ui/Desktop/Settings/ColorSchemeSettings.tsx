@@ -2,15 +2,12 @@ import React, { useState, useEffect } from "react";
 import { ColorPickerModal } from "../../../components/ui/ColorPickerModal";
 import { ThemeCard } from "../../../components/ui/ThemeCard";
 import { ThemeCardSkeleton } from "../../../components/ui/ThemeCardSkeleton";
-import { ThemeLibrary } from "../../../components/ui/ThemeLibrary";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import {
   Plus,
   Upload,
   RefreshCw,
-  Palette,
-  Search,
   Edit,
   X
 } from "lucide-react";
@@ -26,7 +23,6 @@ import {
   type ColorTheme,
   type ThemeExportData,
 } from "../../main-axios";
-import { DEFAULT_THEMES, type ThemeDefinition } from "@/ui/constants/default-themes.ts";
 import { cn } from "@/lib/utils.ts";
 
 // Define all customizable CSS variables
@@ -83,14 +79,13 @@ export const ColorSchemeSettings = () => {
   const [themes, setThemes] = useState<ColorTheme[]>([]);
   const [activeTheme, setActiveTheme] = useState<ColorTheme | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [editingThemeId, setEditingThemeId] = useState<number | null>(null);
 
   // Modal states
   const [showNameModal, setShowNameModal] = useState(false);
   const [nameModalInput, setNameModalInput] = useState("");
+  const [authorModalInput, setAuthorModalInput] = useState("");
   const [nameModalType, setNameModalType] = useState<"create" | "update">("create");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmModalMessage, setConfirmModalMessage] = useState("");
@@ -229,9 +224,11 @@ export const ColorSchemeSettings = () => {
       setNameModalType("update");
       const theme = themes.find((t) => t.id === editingThemeId);
       setNameModalInput(theme?.name || "");
+      setAuthorModalInput(theme?.author || "");
     } else {
       setNameModalType("create");
       setNameModalInput("");
+      setAuthorModalInput("");
     }
     setShowNameModal(true);
   };
@@ -245,16 +242,17 @@ export const ColorSchemeSettings = () => {
     try {
       if (editingThemeId) {
         // Update existing theme
-        await updateTheme(editingThemeId, nameModalInput, colors);
+        await updateTheme(editingThemeId, nameModalInput, colors, authorModalInput || undefined);
         toast.success(`Theme "${nameModalInput}" updated successfully`);
       } else {
         // Create new theme
-        await createTheme(nameModalInput, colors);
+        await createTheme(nameModalInput, colors, authorModalInput || undefined);
         toast.success(`Theme "${nameModalInput}" created successfully`);
       }
 
       setShowNameModal(false);
       setNameModalInput("");
+      setAuthorModalInput("");
       setIsEditorOpen(false);
       setEditingThemeId(null);
       await loadThemes();
@@ -397,21 +395,6 @@ export const ColorSchemeSettings = () => {
     }
   };
 
-  const handleInstallLibraryTheme = async (theme: ThemeDefinition) => {
-    try {
-      await createTheme(theme.name, theme.colors);
-      toast.success(`Theme "${theme.name}" installed successfully`);
-      await loadThemes();
-      setIsLibraryOpen(false);
-    } catch (error) {
-      // Silently ignore authentication errors (user not logged in)
-      if (!isAuthError(error)) {
-        toast.error("Failed to install theme");
-        console.error(error);
-      }
-    }
-  };
-
   const handleResetToDefault = () => {
     showConfirm(
       "Reset all colors to default? This will clear all custom changes.",
@@ -440,11 +423,6 @@ export const ColorSchemeSettings = () => {
     {} as Record<string, typeof COLOR_VARIABLES>,
   );
 
-  // Filter themes by search query
-  const filteredThemes = themes.filter((theme) =>
-    theme.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -465,7 +443,7 @@ export const ColorSchemeSettings = () => {
         </p>
       </div>
 
-      {/* Quick Actions Bar */}
+      {/* Top Actions */}
       <div className="flex flex-wrap gap-2">
         <Button
           onClick={handleCreateTheme}
@@ -473,24 +451,6 @@ export const ColorSchemeSettings = () => {
         >
           <Plus className="w-4 h-4" />
           Create Theme
-        </Button>
-        {activeTheme && (
-          <Button
-            onClick={handleEditCurrentTheme}
-            variant="outline"
-            className="gap-2 border-[var(--color-dark-border)] bg-[var(--color-dark-bg-button)] hover:bg-[var(--color-dark-hover)]"
-          >
-            <Edit className="w-4 h-4" />
-            Edit Current Theme
-          </Button>
-        )}
-        <Button
-          variant="outline"
-          onClick={() => setIsLibraryOpen(true)}
-          className="gap-2 border-[var(--color-dark-border)] bg-[var(--color-dark-bg-button)] hover:bg-[var(--color-dark-hover)]"
-        >
-          <Palette className="w-4 h-4" />
-          Theme Library
         </Button>
         <Button
           variant="outline"
@@ -502,47 +462,33 @@ export const ColorSchemeSettings = () => {
         </Button>
         <Button
           variant="outline"
-          onClick={handleResetToDefault}
+          onClick={loadThemes}
           className="gap-2 border-[var(--color-dark-border)] bg-[var(--color-dark-bg-button)] hover:bg-[var(--color-dark-hover)]"
         >
           <RefreshCw className="w-4 h-4" />
-          Reset
+          Refresh
         </Button>
-      </div>
-
-      {/* Search Bar */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <Input
-          type="text"
-          placeholder="Search themes..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10 bg-[var(--color-dark-bg-input)] border-[var(--color-dark-border)] text-white"
-        />
       </div>
 
       {/* Theme Grid */}
       <div>
         <h3 className="text-sm font-medium text-[var(--color-muted-foreground)] mb-3">
-          Your Themes ({filteredThemes.length})
+          Your Themes ({themes.length})
         </h3>
-        {filteredThemes.length === 0 ? (
+        {themes.length === 0 ? (
           <div className="text-center py-12 border-2 border-dashed border-[var(--color-dark-border)] rounded-lg">
             <p className="text-gray-400 mb-2">No themes found</p>
             <p className="text-sm text-gray-500 mb-4">
-              {searchQuery ? "Try adjusting your search" : "Create your first theme to get started"}
+              Create your first theme to get started
             </p>
-            {!searchQuery && (
-              <Button onClick={handleCreateTheme} className="gap-2">
-                <Plus className="w-4 h-4" />
-                Create Theme
-              </Button>
-            )}
+            <Button onClick={handleCreateTheme} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Create Theme
+            </Button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredThemes.map((theme) => (
+            {themes.map((theme) => (
               <ThemeCard
                 key={theme.id}
                 theme={theme}
@@ -659,22 +605,45 @@ export const ColorSchemeSettings = () => {
             className="flex flex-col rounded-lg border-2 border-[var(--color-dark-border)] bg-[var(--color-dark-bg)] shadow-2xl w-full max-w-md"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">
+            <div className="p-6 space-y-4">
+              <h3 className="text-lg font-semibold text-white">
                 {nameModalType === "create" ? "Create Theme" : "Update Theme"}
               </h3>
-              <Input
-                type="text"
-                placeholder="Enter theme name..."
-                value={nameModalInput}
-                onChange={(e) => setNameModalInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleNameModalSubmit();
-                  if (e.key === "Escape") setShowNameModal(false);
-                }}
-                className="bg-[var(--color-dark-bg-input)] border-[var(--color-dark-border)] text-white"
-                autoFocus
-              />
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">
+                    Theme Name *
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="Enter theme name..."
+                    value={nameModalInput}
+                    onChange={(e) => setNameModalInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleNameModalSubmit();
+                      if (e.key === "Escape") setShowNameModal(false);
+                    }}
+                    className="bg-[var(--color-dark-bg-input)] border-[var(--color-dark-border)] text-white"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">
+                    Creator/Author (Optional)
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="Enter creator name..."
+                    value={authorModalInput}
+                    onChange={(e) => setAuthorModalInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleNameModalSubmit();
+                      if (e.key === "Escape") setShowNameModal(false);
+                    }}
+                    className="bg-[var(--color-dark-bg-input)] border-[var(--color-dark-border)] text-white"
+                  />
+                </div>
+              </div>
             </div>
             <div className="p-4 border-t border-[var(--color-dark-border)] flex justify-end gap-2">
               <Button
@@ -740,14 +709,6 @@ export const ColorSchemeSettings = () => {
           colorName={selectedColor.name}
           onColorChange={handleColorChange}
           backgroundColor={colors["--background"] || "#0a0a0a"}
-        />
-      )}
-
-      {/* Theme Library Modal */}
-      {isLibraryOpen && (
-        <ThemeLibrary
-          onInstallTheme={handleInstallLibraryTheme}
-          onClose={() => setIsLibraryOpen(false)}
         />
       )}
     </div>

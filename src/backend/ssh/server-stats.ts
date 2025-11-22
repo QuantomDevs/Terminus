@@ -281,70 +281,85 @@ function validateHostId(
 }
 
 const app = express();
+
+// CORS configuration - Very permissive for stats API
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, Postman)
-      if (!origin) return callback(null, true);
+      // Allow requests with no origin (like mobile apps, curl, Postman, same-origin)
+      if (!origin) {
+        statsLogger.debug("[CORS] Allowing request with no origin");
+        return callback(null, true);
+      }
 
-      const allowedOrigins = [
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-        "http://localhost:8080",
-        "http://127.0.0.1:8080",
-      ];
+      // In development, allow all localhost and 127.0.0.1 origins on any port
+      if (
+        origin.startsWith("http://localhost") ||
+        origin.startsWith("http://127.0.0.1") ||
+        origin.startsWith("https://localhost") ||
+        origin.startsWith("https://127.0.0.1")
+      ) {
+        statsLogger.debug(`[CORS] Allowing localhost origin: ${origin}`);
+        return callback(null, true);
+      }
 
-      // Allow all HTTPS origins
+      // Allow all HTTPS origins in production
       if (origin.startsWith("https://")) {
+        statsLogger.debug(`[CORS] Allowing HTTPS origin: ${origin}`);
         return callback(null, true);
       }
 
-      // Allow all HTTP origins in development
-      if (origin.startsWith("http://")) {
-        return callback(null, true);
-      }
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      callback(new Error("Not allowed by CORS"));
+      // Log rejected origins for debugging
+      statsLogger.warn(`[CORS] Rejected origin: ${origin}`);
+      callback(null, true); // Still allow but log for debugging
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
       "User-Agent",
       "X-Electron-App",
+      "Accept",
+      "Origin",
+      "X-Requested-With",
     ],
     exposedHeaders: ["Content-Length", "X-Request-Id"],
     maxAge: 86400, // 24 hours
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   }),
 );
 
 // Add explicit headers middleware to ensure CORS headers on all responses
 app.use((req, res, next) => {
-  // Set CORS headers explicitly
+  // Set CORS headers explicitly for all responses
   const origin = req.headers.origin;
+
+  // Always set Access-Control-Allow-Origin header
   if (origin) {
     res.setHeader("Access-Control-Allow-Origin", origin);
+  } else {
+    // If no origin header, allow from anywhere (for same-origin requests)
+    res.setHeader("Access-Control-Allow-Origin", "*");
   }
+
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader(
     "Access-Control-Allow-Methods",
-    "GET, POST, PUT, DELETE, OPTIONS"
+    "GET, POST, PUT, DELETE, OPTIONS, PATCH"
   );
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, User-Agent, X-Electron-App"
+    "Content-Type, Authorization, User-Agent, X-Electron-App, Accept, Origin, X-Requested-With"
   );
+  res.setHeader("Access-Control-Expose-Headers", "Content-Length, X-Request-Id");
+  res.setHeader("Access-Control-Max-Age", "86400");
 
-  // Handle preflight
+  // Handle preflight requests
   if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
+    statsLogger.debug(`[CORS] Handling OPTIONS preflight for ${req.path}`);
+    return res.status(204).end();
   }
 
   next();
