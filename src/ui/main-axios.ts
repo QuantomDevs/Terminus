@@ -332,7 +332,12 @@ function createApiInstance(
         // Only force logout if:
         // 1. Not a login endpoint (invalid credentials shouldn't trigger logout)
         // 2. User had a token (means they were logged in but session expired)
-        if (!isLoginEndpoint && hasToken) {
+        // 3. But NOT for optional/non-critical endpoints (themes, settings, etc.)
+        const isOptionalEndpoint =
+          url?.includes("/themes") ||
+          url?.includes("/settings/");
+
+        if (!isLoginEndpoint && hasToken && !isOptionalEndpoint) {
           console.warn("[AUTH] 401 Unauthorized with valid token - forcing logout");
 
           // Use centralized force logout
@@ -344,6 +349,8 @@ function createApiInstance(
           // User tried to access protected resource without token
           // This is expected when not logged in - don't show error toast
           console.warn("[AUTH] 401 Unauthorized without token - user not logged in");
+        } else if (isOptionalEndpoint) {
+          console.warn("[AUTH] 401 on optional endpoint - not forcing logout");
         }
 
         return Promise.reject(error);
@@ -2084,7 +2091,20 @@ export async function logoutUser(): Promise<{
   message: string;
 }> {
   try {
+    // Check if user is actually logged in before attempting logout
+    const hasToken = !!getAuthToken();
+    if (!hasToken) {
+      console.warn("[LOGOUT] Cannot logout - user is not logged in");
+      console.trace("[LOGOUT] Stacktrace of logout attempt without token:");
+      // Return success since user is already logged out
+      return {
+        success: true,
+        message: "User is already logged out",
+      };
+    }
+
     console.log("[LOGOUT] Logging out user...");
+    console.trace("[LOGOUT] Stacktrace of logout:");
 
     // Call logout endpoint
     const response = await authApi.post("/users/logout");
