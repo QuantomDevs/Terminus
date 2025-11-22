@@ -14,6 +14,7 @@ import {
   deleteSessionState,
   getSetting,
 } from "../../../main-axios.js";
+import { getAuthToken } from "../../../../utils/auth-utils.js";
 
 export type Tab = TabContextTab;
 
@@ -190,7 +191,7 @@ export function TabProvider({ children }: TabProviderProps) {
     const restoreSession = async () => {
       try {
         // Check if user is authenticated before attempting to restore session
-        const token = localStorage.getItem("jwt");
+        const token = getAuthToken();
         if (!token) {
           // No JWT token, skip session restoration
           setSessionRestored(true);
@@ -287,7 +288,7 @@ export function TabProvider({ children }: TabProviderProps) {
     const saveSession = async () => {
       try {
         // Check if user is authenticated before saving session
-        const token = localStorage.getItem("jwt");
+        const token = getAuthToken();
         if (!token) {
           // No JWT token, skip session save
           return;
@@ -322,7 +323,7 @@ export function TabProvider({ children }: TabProviderProps) {
     const handleBeforeUnload = () => {
       try {
         // Check if user is authenticated before saving session
-        const token = localStorage.getItem("jwt");
+        const token = getAuthToken();
         if (!token) {
           // No JWT token, skip session save
           return;

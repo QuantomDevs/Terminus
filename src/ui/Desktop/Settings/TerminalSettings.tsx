@@ -160,7 +160,7 @@ export function TerminalSettings({}: TerminalSettingsProps) {
 
   const loadScrollbackSetting = async () => {
     try {
-      const response = await getSetting("terminal_scrollback");
+      const response = await getSetting("terminal_scrollback_lines");
       setScrollback(parseInt(response.value, 10) || 10000);
     } catch (error) {
       console.error("Failed to load scrollback setting:", error);
@@ -172,7 +172,7 @@ export function TerminalSettings({}: TerminalSettingsProps) {
     const newValue = value[0];
     setScrollback(newValue);
     try {
-      await saveSetting("terminal_scrollback", newValue.toString());
+      await saveSetting("terminal_scrollback_lines", newValue.toString());
     } catch (error) {
       console.error("Failed to save scrollback setting:", error);
       await loadScrollbackSetting();

@@ -342,9 +342,7 @@ export function HomepageAuth({
         throw new Error(t("errors.loginFailed"));
       }
 
-      if (isElectron() && res.token) {
-        localStorage.setItem("jwt", res.token);
-      }
+      // Token is already stored by verifyTOTPLogin function
 
       setInternalLoggedIn(true);
       setLoggedIn(true);

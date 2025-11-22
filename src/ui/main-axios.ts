@@ -79,6 +79,8 @@ interface AuthResponse {
   is_oidc?: boolean;
   totp_enabled?: boolean;
   data_unlocked?: boolean;
+  requires_totp?: boolean;
+  temp_token?: string;
 }
 
 interface UserInfo {
@@ -186,27 +188,42 @@ function createApiInstance(
     // Add JWT token to Authorization header for both browser and Electron
     const token = getAuthToken();
 
-    // Check if this is a login/registration endpoint (these don't need auth)
-    const isAuthEndpoint =
-      url?.includes("/users/login") ||
-      url?.includes("/users/register") ||
-      url?.includes("/users/oidc") ||
-      url?.includes("/users/setup-required") ||
-      url?.includes("/users/registration-allowed") ||
-      url?.includes("/users/count");
+    // Whitelist of endpoints that don't require authentication
+    const publicEndpoints = [
+      "/users/login",
+      "/users/register",
+      "/users/oidc",
+      "/users/setup-required",
+      "/users/registration-allowed",
+      "/users/count",
+      "/health",
+    ];
+
+    // Check if this is a public endpoint (these don't need auth)
+    const isPublicEndpoint = publicEndpoints.some((endpoint) =>
+      url?.includes(endpoint)
+    );
 
     // Debug logging
     if (process.env.NODE_ENV === "development") {
       console.log("[AUTH DEBUG] Token:", token ? "EXISTS" : "MISSING");
       console.log("[AUTH DEBUG] Request:", fullUrl);
-      console.log("[AUTH DEBUG] Is auth endpoint:", isAuthEndpoint);
+      console.log("[AUTH DEBUG] Is public endpoint:", isPublicEndpoint);
+      console.log("[AUTH DEBUG] Endpoint requires auth:", !isPublicEndpoint);
     }
 
     if (token) {
       config.headers["Authorization"] = `Bearer ${token}`;
-    } else if (!isAuthEndpoint) {
-      // Token is missing for protected endpoint - this should not happen
-      console.error("[AUTH DEBUG] No token for protected endpoint:", fullUrl);
+    } else if (!isPublicEndpoint) {
+      // Token is missing for protected endpoint - this is a critical error
+      console.error(
+        "[AUTH CRITICAL] Missing token for protected endpoint:",
+        fullUrl
+      );
+      console.error(
+        "[AUTH CRITICAL] This request will likely fail with 401 Unauthorized"
+      );
+      console.trace("[AUTH CRITICAL] Request origin stacktrace:");
     }
 
     // Mark Electron requests
@@ -329,28 +346,44 @@ function createApiInstance(
         const isLoginEndpoint = url?.includes("/users/login");
         const hasToken = !!getAuthToken();
 
-        // Only force logout if:
-        // 1. Not a login endpoint (invalid credentials shouldn't trigger logout)
-        // 2. User had a token (means they were logged in but session expired)
-        // 3. But NOT for optional/non-critical endpoints (themes, settings, etc.)
-        const isOptionalEndpoint =
-          url?.includes("/themes") ||
-          url?.includes("/settings/");
+        // Whitelist of public endpoints that can return 401 without forcing logout
+        const publicEndpoints = [
+          "/users/login",
+          "/users/register",
+          "/users/count",
+          "/users/setup-required",
+          "/users/registration-allowed",
+        ];
 
-        if (!isLoginEndpoint && hasToken && !isOptionalEndpoint) {
-          console.warn("[AUTH] 401 Unauthorized with valid token - forcing logout");
+        const isPublicEndpoint = publicEndpoints.some((endpoint) =>
+          url?.includes(endpoint)
+        );
+
+        if (!isPublicEndpoint && hasToken) {
+          // User had a valid token but got 401 - session expired
+          console.warn(
+            "[AUTH] 401 Unauthorized with token - session expired, forcing logout"
+          );
+          console.warn("[AUTH] Endpoint:", fullUrl);
 
           // Use centralized force logout
           forceLogout(
             "Your session has expired or is invalid. Please log in again.",
-            true,
+            true
           );
-        } else if (!isLoginEndpoint && !hasToken) {
+        } else if (!isPublicEndpoint && !hasToken) {
           // User tried to access protected resource without token
-          // This is expected when not logged in - don't show error toast
-          console.warn("[AUTH] 401 Unauthorized without token - user not logged in");
-        } else if (isOptionalEndpoint) {
-          console.warn("[AUTH] 401 on optional endpoint - not forcing logout");
+          // This shouldn't happen - request interceptor should have caught this
+          console.error(
+            "[AUTH] 401 Unauthorized without token - this should have been prevented"
+          );
+          console.error("[AUTH] Endpoint:", fullUrl);
+
+          // Force logout to show login screen
+          forceLogout("Authentication required. Please log in.", false);
+        } else if (isLoginEndpoint) {
+          // Login failed - don't force logout
+          console.log("[AUTH] Login attempt failed with invalid credentials");
         }
 
         return Promise.reject(error);
@@ -615,18 +648,36 @@ function handleApiError(error: unknown, operation: string): never {
     };
 
     if (status === 401) {
-      // Suppress auth warning logs - they are expected when user is not logged in
-      // authLogger.warn(
-      //   `Auth failed: ${method} ${url} - ${message}`,
-      //   errorContext,
-      // );
+      // Log auth errors for debugging (but don't spam console)
+      if (process.env.NODE_ENV === "development") {
+        authLogger.warn(
+          `Auth failed: ${method} ${url} - ${message}`,
+          errorContext
+        );
+      }
 
       const isLoginEndpoint = url?.includes("/users/login");
-      const errorMessage = isLoginEndpoint
-        ? message
-        : "Authentication required. Please log in again.";
+      const hasToken = !!getAuthToken();
 
-      throw new ApiError(errorMessage, 401, "AUTH_REQUIRED");
+      let errorMessage: string;
+      let errorCode: string;
+
+      if (isLoginEndpoint) {
+        // Login failed - show server message (likely "Invalid credentials")
+        errorMessage = message;
+        errorCode = "INVALID_CREDENTIALS";
+      } else if (hasToken) {
+        // Had a token but it was rejected - session expired
+        errorMessage =
+          "Your session has expired. Please log in again.";
+        errorCode = "SESSION_EXPIRED";
+      } else {
+        // No token - not logged in
+        errorMessage = "Authentication required. Please log in.";
+        errorCode = "AUTH_REQUIRED";
+      }
+
+      throw new ApiError(errorMessage, 401, errorCode);
     } else if (status === 403) {
       authLogger.warn(`Access denied: ${method} ${url}`, errorContext);
       throw new ApiError(
@@ -2409,6 +2460,27 @@ export async function verifyTOTPLogin(
       temp_token,
       totp_code,
     });
+
+    console.log("[TOTP LOGIN] Response received:", response.data);
+
+    // Store token using centralized utility (same as loginUser)
+    if (isElectron() && response.data.token) {
+      // Electron: token comes in response body
+      console.log("[TOTP LOGIN] Storing token from response (Electron)");
+      setAuthToken(response.data.token);
+    } else if (!isElectron()) {
+      // Browser: token is set as cookie by backend, copy to localStorage
+      const cookieToken = getCookie("jwt");
+      console.log("[TOTP LOGIN] Cookie token:", cookieToken ? "EXISTS" : "MISSING");
+
+      if (cookieToken) {
+        console.log("[TOTP LOGIN] Storing token from cookie (Browser)");
+        setAuthToken(cookieToken);
+      } else {
+        console.warn("[TOTP LOGIN] No cookie token found after TOTP verification");
+      }
+    }
+
     return response.data;
   } catch (error) {
     handleApiError(error as AxiosError, "verify TOTP login");
