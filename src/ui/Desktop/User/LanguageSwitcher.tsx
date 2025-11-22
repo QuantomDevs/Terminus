@@ -8,6 +8,8 @@ import {
   SelectValue,
 } from "@/components/ui/select.tsx";
 import { Globe } from "lucide-react";
+import { updateUserLanguage } from "../../main-axios";
+import { toast } from "sonner";
 
 const languages = [
   { code: "en", name: "English", nativeName: "English" },
@@ -18,9 +20,19 @@ const languages = [
 export function LanguageSwitcher() {
   const { i18n, t } = useTranslation();
 
-  const handleLanguageChange = (value: string) => {
+  const handleLanguageChange = async (value: string) => {
+    // Update i18n language immediately for instant UI feedback
     i18n.changeLanguage(value);
     localStorage.setItem("i18nextLng", value);
+
+    // Save to backend (user needs to be logged in)
+    try {
+      await updateUserLanguage(value);
+    } catch (error) {
+      // Silently fail if user is not logged in
+      // The language will still be saved in localStorage
+      console.log("Language preference not saved to backend (user may not be logged in)");
+    }
   };
 
   return (

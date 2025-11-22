@@ -1001,6 +1001,7 @@ router.get("/me", authenticateJWT, async (req: Request, res: Response) => {
       is_oidc: !!user[0].is_oidc,
       totp_enabled: !!user[0].totp_enabled,
       data_unlocked: isDataUnlocked,
+      language: user[0].language || "en",
     });
   } catch (err) {
     authLogger.error("Failed to get username", err);
@@ -2243,6 +2244,40 @@ router.post("/change-password", authenticateJWT, async (req, res) => {
       userId,
     });
     res.status(500).json({ error: "Failed to change password" });
+  }
+});
+
+// Route: Update user's language preference
+// PUT /users/language
+router.put("/language", authenticateJWT, async (req: Request, res: Response) => {
+  const userId = (req as any).userId;
+  if (!isNonEmptyString(userId)) {
+    authLogger.warn("Invalid userId in JWT for /users/language");
+    return res.status(401).json({ error: "Invalid userId" });
+  }
+
+  const { language } = req.body;
+
+  // Validate language code (should be one of: en, zh, de)
+  const validLanguages = ["en", "zh", "de"];
+  if (!language || !validLanguages.includes(language)) {
+    return res.status(400).json({
+      error: "Invalid language code. Supported languages: en, zh, de"
+    });
+  }
+
+  try {
+    // Update the language in the database
+    await db
+      .update(users)
+      .set({ language })
+      .where(eq(users.id, userId));
+
+    authLogger.info(`Language updated to ${language} for user ${userId}`);
+    res.json({ success: true, language });
+  } catch (err) {
+    authLogger.error("Failed to update language", err);
+    res.status(500).json({ error: "Failed to update language" });
   }
 });
 

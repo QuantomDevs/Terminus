@@ -26,48 +26,54 @@ import {
 } from "../../main-axios";
 import { cn } from "@/lib/utils.ts";
 
-// Define all customizable CSS variables
+// Define all customizable CSS variables with semantic mapping
 const COLOR_VARIABLES = [
-  { name: "--background", label: "Background", category: "Base" },
-  { name: "--foreground", label: "Foreground", category: "Base" },
-  { name: "--card", label: "Card Background", category: "Base" },
-  { name: "--card-foreground", label: "Card Text", category: "Base" },
-  { name: "--popover", label: "Popover Background", category: "Base" },
-  { name: "--popover-foreground", label: "Popover Text", category: "Base" },
+  // Base Colors - Core shadcn/ui semantic colors
+  { name: "--background", label: "Background", category: "Base", usage: "Main app background" },
+  { name: "--foreground", label: "Foreground", category: "Base", usage: "Main text color" },
+  { name: "--card", label: "Card Background", category: "Base", usage: "Card/panel backgrounds" },
+  { name: "--card-foreground", label: "Card Text", category: "Base", usage: "Text on cards/panels" },
+  { name: "--popover", label: "Popover Background", category: "Base", usage: "Dropdown/popover backgrounds" },
+  { name: "--popover-foreground", label: "Popover Text", category: "Base", usage: "Text in dropdowns/popovers" },
 
-  { name: "--primary", label: "Primary", category: "Interactive" },
-  { name: "--primary-foreground", label: "Primary Text", category: "Interactive" },
-  { name: "--secondary", label: "Secondary", category: "Interactive" },
-  { name: "--secondary-foreground", label: "Secondary Text", category: "Interactive" },
-  { name: "--muted", label: "Muted", category: "Interactive" },
-  { name: "--muted-foreground", label: "Muted Text", category: "Interactive" },
-  { name: "--accent", label: "Accent", category: "Interactive" },
-  { name: "--accent-foreground", label: "Accent Text", category: "Interactive" },
+  // Interactive Colors - Button and component states
+  { name: "--primary", label: "Primary", category: "Interactive", usage: "Primary buttons & links" },
+  { name: "--primary-foreground", label: "Primary Text", category: "Interactive", usage: "Text on primary elements" },
+  { name: "--secondary", label: "Secondary", category: "Interactive", usage: "Secondary buttons" },
+  { name: "--secondary-foreground", label: "Secondary Text", category: "Interactive", usage: "Text on secondary elements" },
+  { name: "--muted", label: "Muted", category: "Interactive", usage: "Muted/disabled states" },
+  { name: "--muted-foreground", label: "Muted Text", category: "Interactive", usage: "Subtle text & hints" },
+  { name: "--accent", label: "Accent", category: "Interactive", usage: "Highlighted elements" },
+  { name: "--accent-foreground", label: "Accent Text", category: "Interactive", usage: "Text on accented elements" },
 
-  { name: "--destructive", label: "Destructive", category: "Status" },
-  { name: "--border", label: "Border", category: "Status" },
-  { name: "--input", label: "Input Background", category: "Status" },
-  { name: "--ring", label: "Focus Ring", category: "Status" },
+  // Status Colors - Borders, inputs, and feedback
+  { name: "--destructive", label: "Destructive", category: "Status", usage: "Delete/danger buttons" },
+  { name: "--border", label: "Border", category: "Status", usage: "Default borders" },
+  { name: "--input", label: "Input Background", category: "Status", usage: "Input field backgrounds" },
+  { name: "--ring", label: "Focus Ring", category: "Status", usage: "Focus indicators" },
 
-  { name: "--color-dark-bg", label: "Dark Background", category: "Custom" },
-  { name: "--color-dark-bg-darker", label: "Darker Background", category: "Custom" },
-  { name: "--color-dark-bg-darkest", label: "Darkest Background", category: "Custom" },
-  { name: "--color-dark-bg-input", label: "Input Background", category: "Custom" },
-  { name: "--color-dark-bg-button", label: "Button Background", category: "Custom" },
-  { name: "--color-dark-bg-active", label: "Active Background", category: "Custom" },
-  { name: "--color-dark-bg-header", label: "Header Background", category: "Custom" },
+  // Custom Background Colors - Application-specific backgrounds
+  { name: "--color-dark-bg", label: "App Background", category: "Custom Backgrounds", usage: "Main application surface" },
+  { name: "--color-dark-bg-darker", label: "Darker Surface", category: "Custom Backgrounds", usage: "Sidebar & secondary panels" },
+  { name: "--color-dark-bg-darkest", label: "Darkest Surface", category: "Custom Backgrounds", usage: "Terminal & code backgrounds" },
+  { name: "--color-dark-bg-input", label: "Input Surface", category: "Custom Backgrounds", usage: "Text inputs & form fields" },
+  { name: "--color-dark-bg-button", label: "Button Surface", category: "Custom Backgrounds", usage: "Secondary button backgrounds" },
+  { name: "--color-dark-bg-active", label: "Active Surface", category: "Custom Backgrounds", usage: "Active/selected items" },
+  { name: "--color-dark-bg-header", label: "Header Surface", category: "Custom Backgrounds", usage: "Top navbar & headers" },
 
-  { name: "--color-dark-border", label: "Border", category: "Custom Borders" },
-  { name: "--color-dark-border-active", label: "Active Border", category: "Custom Borders" },
-  { name: "--color-dark-border-hover", label: "Hover Border", category: "Custom Borders" },
-  { name: "--color-dark-hover", label: "Hover Background", category: "Custom Borders" },
-  { name: "--color-dark-active", label: "Active State", category: "Custom Borders" },
-  { name: "--color-dark-pressed", label: "Pressed State", category: "Custom Borders" },
+  // Custom Border & State Colors - Application-specific borders and interactions
+  { name: "--color-dark-border", label: "Default Border", category: "Custom Borders & States", usage: "Panel & window borders" },
+  { name: "--color-dark-border-active", label: "Active Border", category: "Custom Borders & States", usage: "Active element borders" },
+  { name: "--color-dark-border-hover", label: "Hover Border", category: "Custom Borders & States", usage: "Hovered element borders" },
+  { name: "--color-dark-hover", label: "Hover State", category: "Custom Borders & States", usage: "Element hover backgrounds" },
+  { name: "--color-dark-active", label: "Active State", category: "Custom Borders & States", usage: "Active element backgrounds" },
+  { name: "--color-dark-pressed", label: "Pressed State", category: "Custom Borders & States", usage: "Pressed/clicked state" },
 
-  { name: "--accent-color", label: "Accent Color", category: "Accent" },
-  { name: "--accent-color-hover", label: "Accent Hover", category: "Accent" },
-  { name: "--accent-color-light", label: "Accent Light", category: "Accent" },
-  { name: "--accent-color-dark", label: "Accent Dark", category: "Accent" },
+  // Accent Colors - Brand and highlight colors
+  { name: "--accent-color", label: "Brand Accent", category: "Accent Colors", usage: "Links & brand highlights" },
+  { name: "--accent-color-hover", label: "Accent Hover", category: "Accent Colors", usage: "Hovered brand elements" },
+  { name: "--accent-color-light", label: "Accent Light", category: "Accent Colors", usage: "Light accent variant" },
+  { name: "--accent-color-dark", label: "Accent Dark", category: "Accent Colors", usage: "Dark accent variant" },
 ];
 
 export const ColorSchemeSettings = () => {
@@ -575,6 +581,11 @@ export const ColorSchemeSettings = () => {
                               <span className="text-sm font-medium">
                                 {variable.label}
                               </span>
+                              {'usage' in variable && (
+                                <span className="text-xs text-gray-400 italic">
+                                  {variable.usage}
+                                </span>
+                              )}
                               <span className="truncate font-mono text-xs text-[var(--color-muted-foreground)]">
                                 {variable.name}
                               </span>

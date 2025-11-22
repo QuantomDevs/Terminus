@@ -90,6 +90,7 @@ interface UserInfo {
   is_admin: boolean;
   is_oidc: boolean;
   data_unlocked: boolean;
+  language?: string; // User's preferred language (en, zh, de)
 }
 
 interface UserCount {
@@ -2226,6 +2227,14 @@ export async function getUserInfo(): Promise<UserInfo> {
     return response.data;
   } catch (error) {
     handleApiError(error, "fetch user info");
+  }
+}
+
+export async function updateUserLanguage(language: string): Promise<void> {
+  try {
+    await authApi.put("/users/language", { language });
+  } catch (error) {
+    handleApiError(error, "update language preference");
   }
 }
 

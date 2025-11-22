@@ -18,6 +18,7 @@ import { QuickConnectModal } from "@/components/ui/QuickConnectModal.tsx";
 import { getUserInfo, getCookie, initializeDefaultSettings } from "@/ui/main-axios.ts";
 import { getAuthToken } from "@/utils/auth-utils.ts";
 import { useThemeLoader } from "@/ui/hooks/useThemeLoader.ts";
+import { useTranslation } from "react-i18next";
 
 function AppContent() {
   const [view, setView] = useState<string>("homepage");
@@ -35,6 +36,7 @@ function AppContent() {
   });
   const [isQuickConnectOpen, setIsQuickConnectOpen] = useState(false);
   const { currentTab, tabs, removeTab } = useTabs();
+  const { i18n } = useTranslation();
 
   // Load and apply active theme when user is authenticated
   useThemeLoader(isAuthenticated);
@@ -61,6 +63,11 @@ function AppContent() {
           setIsAuthenticated(true);
           setIsAdmin(!!meRes.is_admin);
           setUsername(meRes.username || null);
+
+          // Load user's language preference and apply it
+          if (meRes.language) {
+            i18n.changeLanguage(meRes.language);
+          }
 
           if (!meRes.data_unlocked) {
             console.warn("User data is locked - re-authentication required");

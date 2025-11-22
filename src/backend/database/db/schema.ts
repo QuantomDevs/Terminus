@@ -23,6 +23,8 @@ export const users = sqliteTable("users", {
     .notNull()
     .default(false),
   totp_backup_codes: text("totp_backup_codes"),
+
+  language: text("language").default("en"), // User's preferred language
 });
 
 export const settings = sqliteTable("settings", {
