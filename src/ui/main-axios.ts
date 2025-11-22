@@ -2941,11 +2941,13 @@ export async function getTheme(themeId: number): Promise<ColorTheme> {
 export async function createTheme(
   name: string,
   colors: Record<string, string> | string,
+  author?: string,
 ): Promise<{ message: string; id: number; name: string }> {
   try {
     const response = await authApi.post("/themes", {
       name,
       colors: typeof colors === "string" ? colors : JSON.stringify(colors),
+      author: author || undefined,
     });
     return response.data;
   } catch (error) {
@@ -2957,6 +2959,7 @@ export async function updateTheme(
   themeId: number,
   name?: string,
   colors?: Record<string, string> | string,
+  author?: string,
 ): Promise<{ message: string }> {
   try {
     const response = await authApi.put(`/themes/${themeId}`, {
@@ -2966,6 +2969,7 @@ export async function updateTheme(
           ? colors
           : JSON.stringify(colors)
         : undefined,
+      author: author !== undefined ? author : undefined,
     });
     return response.data;
   } catch (error) {

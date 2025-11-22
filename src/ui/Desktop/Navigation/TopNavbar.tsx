@@ -5,7 +5,8 @@ import { Tab } from "@/ui/Desktop/Navigation/Tabs/Tab.tsx";
 import { useTabs } from "@/ui/Desktop/Navigation/Tabs/TabContext.tsx";
 import { useTranslation } from "react-i18next";
 import { TabDropdown } from "@/ui/Desktop/Navigation/Tabs/TabDropdown.tsx";
-import { isElectron, getUserInfo } from "@/ui/main-axios.ts";
+import { isElectron, getUserInfo, logoutUser } from "@/ui/main-axios.ts";
+import { getAuthToken } from "@/utils/auth-utils.ts";
 import { WindowControls } from "@/ui/Desktop/Navigation/WindowControls.tsx";
 import {
   DropdownMenu,
@@ -72,7 +73,13 @@ export function TopNavbar({
   }, []);
 
   useEffect(() => {
-    // Load user information
+    // Load user information only if authenticated
+    const token = getAuthToken();
+    if (!token) {
+      // No token - user is not authenticated, skip API call
+      return;
+    }
+
     getUserInfo()
       .then((userInfo) => {
         setUsername(userInfo.username || "User");
@@ -219,11 +226,15 @@ export function TopNavbar({
     setCurrentTab(id);
   };
 
-  const handleLogout = () => {
-    // Clear authentication tokens
-    localStorage.removeItem("jwt");
-    // Reload the page to show login screen
-    window.location.reload();
+  const handleLogout = async () => {
+    try {
+      // Use the centralized logout function from main-axios.ts
+      // This handles all cleanup and page reload
+      await logoutUser();
+    } catch (error) {
+      // logoutUser already handles cleanup and reload even on error
+      console.error("Logout error:", error);
+    }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {

@@ -16,6 +16,7 @@ import { Toaster } from "@/components/ui/sonner.tsx";
 import { VersionCheckModal } from "@/components/ui/version-check-modal.tsx";
 import { QuickConnectModal } from "@/components/ui/QuickConnectModal.tsx";
 import { getUserInfo, getCookie, initializeDefaultSettings } from "@/ui/main-axios.ts";
+import { getAuthToken } from "@/utils/auth-utils.ts";
 
 function AppContent() {
   const [view, setView] = useState<string>("homepage");
@@ -37,6 +38,20 @@ function AppContent() {
   useEffect(() => {
     const checkAuth = () => {
       setAuthLoading(true);
+
+      // First check if a token exists before making any API requests
+      const token = getAuthToken();
+      if (!token) {
+        // No token - user is not authenticated, skip API calls
+        console.log("[AUTH] No token found - user not authenticated");
+        setIsAuthenticated(false);
+        setIsAdmin(false);
+        setUsername(null);
+        setAuthLoading(false);
+        return;
+      }
+
+      // Token exists, verify it with the backend
       getUserInfo()
         .then((meRes) => {
           setIsAuthenticated(true);

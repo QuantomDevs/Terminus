@@ -262,6 +262,14 @@ export function TabProvider({ children }: TabProviderProps) {
 
     const autoOpenLocalTerminal = async () => {
       try {
+        // Check if user is authenticated before calling API
+        const token = getAuthToken();
+        if (!token) {
+          // No JWT token, skip auto-open
+          autoOpenAttempted.current = true;
+          return;
+        }
+
         const autoOpenSetting = await getSetting("terminal_auto_open_local");
         const autoOpenEnabled = autoOpenSetting.value === "true";
 
