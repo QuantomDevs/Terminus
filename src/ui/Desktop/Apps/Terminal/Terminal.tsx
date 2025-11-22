@@ -544,6 +544,15 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
         // Setting doesn't exist, use default cursorStyle
       }
 
+      // Get theme colors from CSS variables
+      const rootStyles = getComputedStyle(document.documentElement);
+      const backgroundColor = rootStyles.getPropertyValue('--color-dark-bg-darkest').trim() ||
+                             rootStyles.getPropertyValue('--background').trim() ||
+                             '#18181b';
+      const foregroundColor = rootStyles.getPropertyValue('--foreground').trim() || '#f7f7f7';
+      const cursorColor = rootStyles.getPropertyValue('--primary').trim() || '#3b82f6';
+      const selectionBackground = rootStyles.getPropertyValue('--primary').trim() || '#3b82f6';
+
       terminal.options = {
         cursorBlink,
         cursorStyle,
@@ -551,7 +560,12 @@ export const Terminal = forwardRef<any, SSHTerminalProps>(function SSHTerminal(
         fontSize,
       fontFamily:
         '"Caskaydia Cove Nerd Font Mono", "SF Mono", Consolas, "Liberation Mono", monospace',
-      theme: { background: "#18181b", foreground: "#f7f7f7" },
+      theme: {
+        background: backgroundColor,
+        foreground: foregroundColor,
+        cursor: cursorColor,
+        selectionBackground: selectionBackground + '40', // Add 40 for 25% opacity
+      },
       allowTransparency: true,
       convertEol: true,
       windowsMode: false,

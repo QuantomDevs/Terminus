@@ -13,7 +13,7 @@ const authenticateJWT = authManager.createAuthMiddleware();
 // Route: Get all themes for the current user
 // GET /themes
 router.get("/", authenticateJWT, async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
+  const userId = (req as any).userId;
 
   if (!userId) {
     return res.status(401).json({ error: "User not authenticated" });
@@ -39,7 +39,7 @@ router.get("/", authenticateJWT, async (req: Request, res: Response) => {
 // Route: Get a specific theme by ID
 // GET /themes/:id
 router.get("/:id", authenticateJWT, async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
+  const userId = (req as any).userId;
   const themeId = parseInt(req.params.id);
 
   if (!userId) {
@@ -77,7 +77,7 @@ router.get("/:id", authenticateJWT, async (req: Request, res: Response) => {
 // Route: Create a new theme
 // POST /themes
 router.post("/", authenticateJWT, async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
+  const userId = (req as any).userId;
   const { name, colors, author } = req.body;
 
   if (!userId) {
@@ -127,7 +127,7 @@ router.post("/", authenticateJWT, async (req: Request, res: Response) => {
 // Route: Update a theme
 // PUT /themes/:id
 router.put("/:id", authenticateJWT, async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
+  const userId = (req as any).userId;
   const themeId = parseInt(req.params.id);
   const { name, colors, author } = req.body;
 
@@ -194,7 +194,7 @@ router.put("/:id", authenticateJWT, async (req: Request, res: Response) => {
 // Route: Delete a theme
 // DELETE /themes/:id
 router.delete("/:id", authenticateJWT, async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
+  const userId = (req as any).userId;
   const themeId = parseInt(req.params.id);
 
   if (!userId) {
@@ -249,7 +249,7 @@ router.put(
   "/:id/activate",
   authenticateJWT,
   async (req: Request, res: Response) => {
-    const userId = (req as any).user?.id;
+    const userId = (req as any).userId;
     const themeId = parseInt(req.params.id);
 
     if (!userId) {
@@ -316,7 +316,7 @@ router.post(
   "/import",
   authenticateJWT,
   async (req: Request, res: Response) => {
-    const userId = (req as any).user?.id;
+    const userId = (req as any).userId;
     const themeData = req.body;
 
     if (!userId) {
@@ -418,7 +418,7 @@ router.get(
   "/:id/export",
   authenticateJWT,
   async (req: Request, res: Response) => {
-    const userId = (req as any).user?.id;
+    const userId = (req as any).userId;
     const themeId = parseInt(req.params.id);
 
     if (!userId) {

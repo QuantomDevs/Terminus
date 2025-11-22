@@ -17,6 +17,7 @@ import { VersionCheckModal } from "@/components/ui/version-check-modal.tsx";
 import { QuickConnectModal } from "@/components/ui/QuickConnectModal.tsx";
 import { getUserInfo, getCookie, initializeDefaultSettings } from "@/ui/main-axios.ts";
 import { getAuthToken } from "@/utils/auth-utils.ts";
+import { useThemeLoader } from "@/ui/hooks/useThemeLoader.ts";
 
 function AppContent() {
   const [view, setView] = useState<string>("homepage");
@@ -34,6 +35,9 @@ function AppContent() {
   });
   const [isQuickConnectOpen, setIsQuickConnectOpen] = useState(false);
   const { currentTab, tabs, removeTab } = useTabs();
+
+  // Load and apply active theme when user is authenticated
+  useThemeLoader(isAuthenticated);
 
   useEffect(() => {
     const checkAuth = () => {

@@ -11,6 +11,7 @@ import { getUserInfo, getCookie } from "@/ui/main-axios.ts";
 import { HomepageAuth } from "@/ui/Mobile/Homepage/HomepageAuth.tsx";
 import { useTranslation } from "react-i18next";
 import { Toaster } from "@/components/ui/sonner.tsx";
+import { useThemeLoader } from "@/ui/hooks/useThemeLoader.ts";
 
 const AppContent: FC = () => {
   const { t } = useTranslation();
@@ -22,6 +23,9 @@ const AppContent: FC = () => {
   const [username, setUsername] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+
+  // Load and apply active theme when user is authenticated
+  useThemeLoader(isAuthenticated);
 
   useEffect(() => {
     const checkAuth = () => {

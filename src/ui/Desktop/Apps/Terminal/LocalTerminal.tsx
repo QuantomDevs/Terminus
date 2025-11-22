@@ -454,6 +454,15 @@ export const LocalTerminal = forwardRef<any, LocalTerminalProps>(
             console.error("Failed to load cursor style setting:", error);
           }
 
+          // Get theme colors from CSS variables
+          const rootStyles = getComputedStyle(document.documentElement);
+          const backgroundColor = rootStyles.getPropertyValue('--color-dark-bg-darkest').trim() ||
+                                 rootStyles.getPropertyValue('--background').trim() ||
+                                 '#0f0f0f';
+          const foregroundColor = rootStyles.getPropertyValue('--foreground').trim() || '#ffffff';
+          const cursorColor = rootStyles.getPropertyValue('--primary').trim() || '#ffffff';
+          const selectionBackground = rootStyles.getPropertyValue('--primary').trim() || '#ffffff';
+
           terminal.options = {
             ...terminal.options,
             fontFamily:
@@ -462,10 +471,10 @@ export const LocalTerminal = forwardRef<any, LocalTerminalProps>(
             cursorBlink,
             cursorStyle,
           theme: {
-            background: "#0f0f0f",
-            foreground: "#ffffff",
-            cursor: "#ffffff",
-            selectionBackground: "rgba(255, 255, 255, 0.3)",
+            background: backgroundColor,
+            foreground: foregroundColor,
+            cursor: cursorColor,
+            selectionBackground: selectionBackground + '40', // Add 40 for 25% opacity
             black: "#000000",
             red: "#e06c75",
             green: "#98c379",

@@ -4,6 +4,7 @@ import { Button } from "./button";
 import { Copy, RotateCcw, Check, AlertCircle, CheckCircle, Info } from "lucide-react";
 import { checkColorPair, getContrastRatio, getWCAGLevel } from "@/ui/utils/contrast-checker.ts";
 import { generatePalette, type PaletteType } from "@/ui/utils/palette-generator.ts";
+import { ensureHex, resolveCssVariable } from "@/ui/utils/color-converters.ts";
 import { cn } from "@/lib/utils.ts";
 
 interface ColorPickerModalProps {
@@ -26,14 +27,21 @@ export const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
   onColorChange,
   backgroundColor = "#0a0a0a",
 }) => {
-  const [selectedColor, setSelectedColor] = useState<string>(color);
+  const [selectedColor, setSelectedColor] = useState<string>(() => {
+    // Convert initial color to hex format for color picker compatibility
+    const resolved = resolveCssVariable(color);
+    return ensureHex(resolved);
+  });
   const [recentColors, setRecentColors] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<"picker" | "harmony">("picker");
   const [showWcagTooltip, setShowWcagTooltip] = useState(false);
 
   useEffect(() => {
-    setSelectedColor(color);
+    // Convert color to hex format when it changes
+    const resolved = resolveCssVariable(color);
+    const hexColor = ensureHex(resolved);
+    setSelectedColor(hexColor);
   }, [color]);
 
   useEffect(() => {
@@ -89,7 +97,10 @@ export const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
   };
 
   const handleReset = () => {
-    setSelectedColor(color);
+    // Convert to hex when resetting
+    const resolved = resolveCssVariable(color);
+    const hexColor = ensureHex(resolved);
+    setSelectedColor(hexColor);
   };
 
   // Calculate contrast ratio and WCAG level

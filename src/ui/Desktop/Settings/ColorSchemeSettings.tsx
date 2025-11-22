@@ -72,6 +72,7 @@ const COLOR_VARIABLES = [
 
 export const ColorSchemeSettings = () => {
   const [colors, setColors] = useState<Record<string, string>>({});
+  const [initialColors, setInitialColors] = useState<Record<string, string>>({});
   const [selectedColor, setSelectedColor] = useState<{
     name: string;
     value: string;
@@ -82,6 +83,7 @@ export const ColorSchemeSettings = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingThemeId, setEditingThemeId] = useState<number | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Error state
   const [error, setError] = useState<Error | null>(null);
@@ -114,6 +116,19 @@ export const ColorSchemeSettings = () => {
     initializeSettings();
   }, []);
 
+  // Cleanup: Restore initial colors on unmount if changes weren't saved
+  useEffect(() => {
+    return () => {
+      // Only restore if there were unsaved changes
+      if (hasUnsavedChanges && Object.keys(initialColors).length > 0) {
+        // Restore all initial colors
+        Object.entries(initialColors).forEach(([name, value]) => {
+          document.documentElement.style.setProperty(name, value);
+        });
+      }
+    };
+  }, [hasUnsavedChanges, initialColors]);
+
   const loadCurrentColors = () => {
     const root = document.documentElement;
     const computedStyle = getComputedStyle(root);
@@ -127,6 +142,8 @@ export const ColorSchemeSettings = () => {
     });
 
     setColors(currentColors);
+    // Store initial colors for cleanup on unmount
+    setInitialColors(currentColors);
   };
 
   const loadThemes = async () => {
@@ -172,6 +189,8 @@ export const ColorSchemeSettings = () => {
         ...prev,
         [selectedColor.name]: newColor,
       }));
+      // Mark as having unsaved changes
+      setHasUnsavedChanges(true);
     }
   };
 
@@ -257,6 +276,7 @@ export const ColorSchemeSettings = () => {
       setAuthorModalInput("");
       setIsEditorOpen(false);
       setEditingThemeId(null);
+      setHasUnsavedChanges(false); // Clear unsaved changes flag
       await loadThemes();
     } catch (error) {
       // Silently ignore authentication errors (user not logged in)
@@ -285,6 +305,7 @@ export const ColorSchemeSettings = () => {
       // Activate the theme
       await activateTheme(themeId);
       await loadThemes();
+      setHasUnsavedChanges(false); // Clear unsaved changes flag
       toast.success(`Theme "${theme.name}" applied successfully`);
     } catch (error) {
       // Silently ignore authentication errors (user not logged in)
