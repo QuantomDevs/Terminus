@@ -31,6 +31,11 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   file_manager_show_owner: "false",
   file_manager_display_size: "comfortable",
   file_manager_design: "explorer",
+
+  // UI customization settings
+  hide_close_button: "false",
+  hide_options_button: "false",
+  auto_update_check: "true",
 };
 
 // Helper function to get or create settings with defaults

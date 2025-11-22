@@ -52,6 +52,7 @@ export function TabProvider({ children }: TabProviderProps) {
   const [allSplitScreenTab, setAllSplitScreenTab] = useState<number[]>([]);
   const nextTabId = useRef(1);
   const [sessionRestored, setSessionRestored] = useState(false);
+  const autoOpenAttempted = useRef(false);
 
   function computeUniqueTitle(
     tabType: Tab["type"],
@@ -256,7 +257,8 @@ export function TabProvider({ children }: TabProviderProps) {
 
   // Auto-open local terminal on startup if enabled
   useEffect(() => {
-    if (!sessionRestored) return;
+    // Only run once after session is restored
+    if (!sessionRestored || autoOpenAttempted.current) return;
 
     const autoOpenLocalTerminal = async () => {
       try {
@@ -264,7 +266,8 @@ export function TabProvider({ children }: TabProviderProps) {
         const autoOpenEnabled = autoOpenSetting.value === "true";
 
         if (autoOpenEnabled) {
-          // Check if there's already a local_terminal tab open
+          // Use a snapshot of current tabs to check if local terminal already exists
+          // This check happens at the time of execution, not as a dependency
           const hasLocalTerminal = tabs.some(tab => tab.type === "local_terminal");
 
           if (!hasLocalTerminal) {
@@ -272,14 +275,19 @@ export function TabProvider({ children }: TabProviderProps) {
             addTab({ type: "local_terminal", title: t("nav.localTerminal") });
           }
         }
+
+        // Mark that we've attempted auto-open to prevent re-running
+        autoOpenAttempted.current = true;
       } catch (error) {
         // Setting doesn't exist or error occurred, skip auto-open
         console.debug("Auto-open local terminal setting not found or error:", error);
+        autoOpenAttempted.current = true;
       }
     };
 
     autoOpenLocalTerminal();
-  }, [sessionRestored, tabs, addTab, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionRestored]);
 
   // Save session state when tabs change (but only after session has been restored)
   useEffect(() => {
