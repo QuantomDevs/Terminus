@@ -7,8 +7,28 @@ import os from "os";
 import { fileLogger } from "../utils/logger.js";
 import { AuthManager } from "../utils/auth-manager.js";
 import * as editorLauncher from "./editor-launcher.js";
+import { findAvailablePort } from "../utils/port-utils.js";
+import { portRegistry, SERVICE_NAMES } from "../utils/port-registry.js";
 
 const app = express();
+
+/**
+ * Normalize path for frontend consumption (convert backslashes to forward slashes)
+ * Frontend expects POSIX-style paths regardless of backend OS
+ */
+function normalizePathForFrontend(filePath: string): string {
+  return filePath.replace(/\\/g, "/");
+}
+
+/**
+ * Normalize path from frontend for backend use (convert to platform-specific separators)
+ */
+function normalizePathFromFrontend(filePath: string): string {
+  if (process.platform === "win32") {
+    return filePath.replace(/\//g, path.sep);
+  }
+  return filePath;
+}
 
 app.use(
   cors({
@@ -55,20 +75,23 @@ app.use(authManager.createAuthMiddleware());
 
 // Helper function to get safe local path
 function getSafeLocalPath(requestedPath: string): string {
+  // Normalize path from frontend (convert forward slashes to platform-specific)
+  const platformPath = normalizePathFromFrontend(requestedPath);
+
   // Get user's home directory as base
   const homeDir = os.homedir();
 
   // If path is absolute and starts with home dir, use it
-  if (path.isAbsolute(requestedPath)) {
+  if (path.isAbsolute(platformPath)) {
     // Ensure path is within home directory for security
-    const normalizedPath = path.normalize(requestedPath);
+    const normalizedPath = path.normalize(platformPath);
     if (normalizedPath.startsWith(homeDir)) {
       return normalizedPath;
     }
   }
 
   // Otherwise, resolve relative to home directory
-  return path.join(homeDir, requestedPath);
+  return path.join(homeDir, platformPath);
 }
 
 // Helper function to determine if a file is executable
@@ -167,7 +190,7 @@ app.get("/local/listFiles", async (req, res) => {
 
         return {
           name: entry.name,
-          path: fullPath,
+          path: normalizePathForFrontend(fullPath),
           type: fileType,
           size: stats.size,
           modifiedTime: stats.mtime.toISOString(),
@@ -665,8 +688,6 @@ app.post("/validateEditorPath", async (req, res) => {
   }
 });
 
-const PORT = process.env.LOCAL_FILE_PORT || 30006;
-
 // Catch-all for debugging 404s
 app.use((req, res, next) => {
   fileLogger.error(`[LOCAL FILE MANAGER] 404 - ${req.method} ${req.url}`, {
@@ -683,10 +704,16 @@ app.use((req, res, next) => {
   });
 });
 
-function startServer() {
-  return new Promise<void>((resolve, reject) => {
+async function startServer() {
+  return new Promise<void>(async (resolve, reject) => {
     try {
+      const preferredPort = 30006;
+      const PORT = await findAvailablePort(preferredPort);
+
       app.listen(PORT, () => {
+        // Register the port in the central registry
+        portRegistry.setPort(SERVICE_NAMES.LOCAL_FILE_MANAGER, PORT);
+
         fileLogger.info(`[LOCAL FILE MANAGER] Server listening on port ${PORT}`, {
           operation: "server_start",
           port: PORT,

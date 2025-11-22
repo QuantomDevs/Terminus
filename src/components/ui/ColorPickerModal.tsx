@@ -118,8 +118,9 @@ export const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[999999] flex items-center justify-center"
+      className="fixed inset-0 flex items-center justify-center"
       style={{
+        zIndex: "var(--z-modal-backdrop)",
         backdropFilter: "blur(8px)",
         backgroundColor: "rgba(0, 0, 0, 0.5)",
       }}
@@ -263,7 +264,7 @@ export const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
                     >
                       <Info className="w-4 h-4 text-gray-400 hover:text-white cursor-help transition-colors" />
                       {showWcagTooltip && (
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-[var(--color-dark-bg)] border border-[var(--color-dark-border)] rounded-md shadow-xl z-50">
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-[var(--color-dark-bg)] border border-[var(--color-dark-border)] rounded-md shadow-xl" style={{ zIndex: "var(--z-tooltip)" }}>
                           <div className="text-xs text-white space-y-2">
                             <p className="font-semibold">WCAG Contrast Levels:</p>
                             <p><span className="text-green-500">AAA</span>: 7:1+ (Best accessibility)</p>

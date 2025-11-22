@@ -406,7 +406,8 @@ export function TopNavbar({
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-48 bg-sidebar-accent text-sidebar-accent-foreground border border-border rounded-md shadow-2xl p-1 z-[9999]"
+              className="w-48 bg-sidebar-accent text-sidebar-accent-foreground border border-border rounded-md shadow-2xl p-1"
+              style={{ zIndex: "var(--z-dropdown)" }}
             >
               <DropdownMenuItem
                 className="rounded px-2 py-1.5 hover:bg-white/15 hover:text-accent-foreground focus:bg-white/20 focus:text-accent-foreground cursor-pointer focus:outline-none text-sm flex items-center gap-2"

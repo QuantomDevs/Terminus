@@ -119,6 +119,17 @@
   --fm-grid-gap: 16px;
   --fm-padding: 12px;
   --fm-item-width: 120px;
+
+  /* Z-Index Architecture - Standardized layering system */
+  --z-base: 0;
+  --z-sidebar: 40;
+  --z-navbar: 50;
+  --z-dropdown: 60;
+  --z-modal-backdrop: 100;
+  --z-modal-content: 101;
+  --z-popover: 150;
+  --z-tooltip: 200;
+  --z-toast: 300;
 }
 
 /* File Manager Small Display Size */

@@ -64,8 +64,9 @@ export function AssignTagsModal({
 
   return (
     <div
-      className="fixed inset-0 z-[999999] flex items-center justify-center pointer-events-auto"
+      className="fixed inset-0 flex items-center justify-center pointer-events-auto"
       style={{
+        zIndex: "var(--z-modal-backdrop)",
         backdropFilter: "blur(8px)",
         backgroundColor: "rgba(0, 0, 0, 0.5)",
       }}

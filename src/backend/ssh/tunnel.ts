@@ -992,6 +992,32 @@ async function connectSSHTunnel(
   conn.connect(connOptions);
 }
 
+/**
+ * Detect if remote host is Windows or Unix-like
+ */
+function detectRemoteOS(
+  conn: Client,
+  callback: (isWindows: boolean) => void,
+): void {
+  conn.exec("ver", (err, stream) => {
+    if (!err) {
+      let output = "";
+      stream.on("data", (data) => {
+        output += data.toString();
+      });
+      stream.on("close", () => {
+        if (output.toLowerCase().includes("windows")) {
+          callback(true);
+          return;
+        }
+        callback(false);
+      });
+    } else {
+      callback(false);
+    }
+  });
+}
+
 async function killRemoteTunnelByMarker(
   tunnelConfig: TunnelConfig,
   tunnelName: string,
@@ -1122,95 +1148,109 @@ async function killRemoteTunnelByMarker(
   }
 
   conn.on("ready", () => {
-    const checkCmd = `ps aux | grep -E '(${tunnelMarker}|ssh.*-R.*${tunnelConfig.endpointPort}:localhost:${tunnelConfig.sourcePort}.*${tunnelConfig.endpointUsername}@${tunnelConfig.endpointIP}|sshpass.*ssh.*-R.*${tunnelConfig.endpointPort})' | grep -v grep`;
+    detectRemoteOS(conn, (isWindows) => {
+      let checkCmd: string;
+      let killCmds: string[];
 
-    conn.exec(checkCmd, (err, stream) => {
-      let foundProcesses = false;
+      if (isWindows) {
+        checkCmd = `tasklist /FI "IMAGENAME eq ssh.exe" /FO CSV | findstr /I "ssh"`;
 
-      stream.on("data", (data) => {
-        const output = data.toString().trim();
-        if (output) {
-          foundProcesses = true;
-        }
-      });
+        killCmds = [
+          `taskkill /F /FI "IMAGENAME eq ssh.exe" /FI "WINDOWTITLE eq *${tunnelConfig.endpointPort}*"`,
+          `timeout /T 1 /NOBREAK && taskkill /F /FI "IMAGENAME eq ssh.exe"`,
+        ];
+      } else {
+        checkCmd = `ps aux | grep -E '(${tunnelMarker}|ssh.*-R.*${tunnelConfig.endpointPort}:localhost:${tunnelConfig.sourcePort}.*${tunnelConfig.endpointUsername}@${tunnelConfig.endpointIP}|sshpass.*ssh.*-R.*${tunnelConfig.endpointPort})' | grep -v grep`;
 
-      stream.on("close", () => {
-        if (!foundProcesses) {
-          conn.end();
-          callback();
-          return;
-        }
-
-        const killCmds = [
+        killCmds = [
           `pkill -TERM -f '${tunnelMarker}'`,
           `sleep 1 && pkill -f 'ssh.*-R.*${tunnelConfig.endpointPort}:localhost:${tunnelConfig.sourcePort}.*${tunnelConfig.endpointUsername}@${tunnelConfig.endpointIP}'`,
           `sleep 1 && pkill -f 'sshpass.*ssh.*-R.*${tunnelConfig.endpointPort}'`,
           `sleep 2 && pkill -9 -f '${tunnelMarker}'`,
         ];
+      }
 
-        let commandIndex = 0;
+      conn.exec(checkCmd, (err, stream) => {
+        let foundProcesses = false;
 
-        function executeNextKillCommand() {
-          if (commandIndex >= killCmds.length) {
-            conn.exec(checkCmd, (err, verifyStream) => {
-              let stillRunning = false;
+        stream.on("data", (data) => {
+          const output = data.toString().trim();
+          if (output) {
+            foundProcesses = true;
+          }
+        });
 
-              verifyStream.on("data", (data) => {
-                const output = data.toString().trim();
-                if (output) {
-                  stillRunning = true;
-                  tunnelLogger.warn(
-                    `Processes still running after cleanup for '${tunnelName}': ${output}`,
-                  );
-                }
-              });
-
-              verifyStream.on("close", () => {
-                if (stillRunning) {
-                  tunnelLogger.warn(
-                    `Some tunnel processes may still be running for '${tunnelName}'`,
-                  );
-                }
-                conn.end();
-                callback();
-              });
-            });
+        stream.on("close", () => {
+          if (!foundProcesses) {
+            conn.end();
+            callback();
             return;
           }
 
-          const killCmd = killCmds[commandIndex];
+          let commandIndex = 0;
 
-          conn.exec(killCmd, (err, stream) => {
-            if (err) {
-              tunnelLogger.warn(
-                `Kill command ${commandIndex + 1} failed for '${tunnelName}': ${err.message}`,
-              );
-            } else {
+          function executeNextKillCommand() {
+            if (commandIndex >= killCmds.length) {
+              conn.exec(checkCmd, (err, verifyStream) => {
+                let stillRunning = false;
+
+                verifyStream.on("data", (data) => {
+                  const output = data.toString().trim();
+                  if (output) {
+                    stillRunning = true;
+                    tunnelLogger.warn(
+                      `Processes still running after cleanup for '${tunnelName}': ${output}`,
+                    );
+                  }
+                });
+
+                verifyStream.on("close", () => {
+                  if (stillRunning) {
+                    tunnelLogger.warn(
+                      `Some tunnel processes may still be running for '${tunnelName}'`,
+                    );
+                  }
+                  conn.end();
+                  callback();
+                });
+              });
+              return;
             }
 
-            stream.on("close", (code) => {
-              commandIndex++;
-              executeNextKillCommand();
-            });
+            const killCmd = killCmds[commandIndex];
 
-            stream.on("data", (data) => {
-              const output = data.toString().trim();
-              if (output) {
-              }
-            });
-
-            stream.stderr.on("data", (data) => {
-              const output = data.toString().trim();
-              if (output && !output.includes("debug1")) {
+            conn.exec(killCmd, (err, stream) => {
+              if (err) {
                 tunnelLogger.warn(
-                  `Kill command ${commandIndex + 1} stderr for '${tunnelName}': ${output}`,
+                  `Kill command ${commandIndex + 1} failed for '${tunnelName}': ${err.message}`,
                 );
+              } else {
               }
-            });
-          });
-        }
 
-        executeNextKillCommand();
+              stream.on("close", (code) => {
+                commandIndex++;
+                executeNextKillCommand();
+              });
+
+              stream.on("data", (data) => {
+                const output = data.toString().trim();
+                if (output) {
+                }
+              });
+
+              stream.stderr.on("data", (data) => {
+                const output = data.toString().trim();
+                if (output && !output.includes("debug1")) {
+                  tunnelLogger.warn(
+                    `Kill command ${commandIndex + 1} stderr for '${tunnelName}': ${output}`,
+                  );
+                }
+              });
+            });
+          }
+
+          executeNextKillCommand();
+        });
       });
     });
   });

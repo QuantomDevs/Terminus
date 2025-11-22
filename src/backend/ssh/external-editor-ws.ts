@@ -23,7 +23,7 @@ export async function startExternalEditorServer() {
     return;
   }
 
-  const preferredPort = 30005;
+  const preferredPort = 30008;
   const port = await findAvailablePort(preferredPort);
   wss = new WebSocketServer({ port });
 

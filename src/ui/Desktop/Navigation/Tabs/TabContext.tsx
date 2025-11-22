@@ -4,6 +4,8 @@ import React, {
   useState,
   useRef,
   useEffect,
+  useCallback,
+  useMemo,
   type ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -95,7 +97,7 @@ export function TabProvider({ children }: TabProviderProps) {
     return `${root} (${n})`;
   }
 
-  const addTab = (tabData: Omit<Tab, "id">): number => {
+  const addTab = useCallback((tabData: Omit<Tab, "id">): number => {
     const id = nextTabId.current++;
     const needsUniqueTitle =
       tabData.type === "terminal" ||
@@ -119,9 +121,9 @@ export function TabProvider({ children }: TabProviderProps) {
     setCurrentTab(id);
     setAllSplitScreenTab((prev) => prev.filter((tid) => tid !== id));
     return id;
-  };
+  }, [tabs]);
 
-  const removeTab = (tabId: number) => {
+  const removeTab = useCallback((tabId: number) => {
     const tab = tabs.find((t) => t.id === tabId);
 
     if (
@@ -144,9 +146,9 @@ export function TabProvider({ children }: TabProviderProps) {
         setCurrentTab(null);
       }
     }
-  };
+  }, [tabs, currentTab]);
 
-  const setSplitScreenTab = (tabId: number) => {
+  const setSplitScreenTab = useCallback((tabId: number) => {
     setAllSplitScreenTab((prev) => {
       if (prev.includes(tabId)) {
         return prev.filter((id) => id !== tabId);
@@ -155,13 +157,13 @@ export function TabProvider({ children }: TabProviderProps) {
       }
       return prev;
     });
-  };
+  }, []);
 
-  const getTab = (tabId: number) => {
+  const getTab = useCallback((tabId: number) => {
     return tabs.find((tab) => tab.id === tabId);
-  };
+  }, [tabs]);
 
-  const updateHostConfig = (hostId: number, newHostConfig: any) => {
+  const updateHostConfig = useCallback((hostId: number, newHostConfig: any) => {
     setTabs((prev) =>
       prev.map((tab) => {
         if (tab.hostConfig && tab.hostConfig.id === hostId) {
@@ -176,16 +178,16 @@ export function TabProvider({ children }: TabProviderProps) {
         return tab;
       }),
     );
-  };
+  }, []);
 
-  const reorderTabs = (oldIndex: number, newIndex: number) => {
+  const reorderTabs = useCallback((oldIndex: number, newIndex: number) => {
     setTabs((prev) => {
       const newTabs = [...prev];
       const [movedTab] = newTabs.splice(oldIndex, 1);
       newTabs.splice(newIndex, 0, movedTab);
       return newTabs;
     });
-  };
+  }, []);
 
   // Restore session state on mount
   useEffect(() => {
@@ -374,7 +376,7 @@ export function TabProvider({ children }: TabProviderProps) {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [tabs]);
 
-  const value: TabContextType = {
+  const value: TabContextType = useMemo(() => ({
     tabs,
     currentTab,
     allSplitScreenTab,
@@ -385,7 +387,7 @@ export function TabProvider({ children }: TabProviderProps) {
     getTab,
     updateHostConfig,
     reorderTabs,
-  };
+  }), [tabs, currentTab, allSplitScreenTab, addTab, removeTab, setSplitScreenTab, getTab, updateHostConfig, reorderTabs]);
 
   return <TabContext.Provider value={value}>{children}</TabContext.Provider>;
 }

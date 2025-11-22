@@ -739,10 +739,16 @@ wss.on("connection", async (ws: WebSocket, req) => {
     }
   }
 
+  /**
+   * Setup SSH keepalive mechanism
+   * Sends null byte every 60 seconds to prevent connection timeout on slow networks
+   * Connection timeout is set to 60s (line 377) to allow handshake completion on high-latency connections
+   */
   function setupPingInterval() {
     pingInterval = setInterval(() => {
       if (sshConn && sshStream) {
         try {
+          // Send null byte as keepalive
           sshStream.write("\x00");
         } catch (e: any) {
           sshLogger.error("SSH keepalive failed: " + e.message);

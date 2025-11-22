@@ -225,6 +225,18 @@ class SystemCrypto {
     const dataDir = process.env.DATA_DIR || "./db/data";
     const envPath = path.join(dataDir, ".env");
 
+    // Warning if running as root
+    if (process.getuid && process.getuid() === 0) {
+      databaseLogger.warn(
+        "Application is running as root user. This is not recommended for security reasons. " +
+        "Consider running Terminus as a non-root user to improve security.",
+        {
+          operation: "security_warning",
+          issue: "running_as_root",
+        }
+      );
+    }
+
     try {
       await fs.mkdir(dataDir, { recursive: true });
 
@@ -248,6 +260,23 @@ class SystemCrypto {
       }
 
       await fs.writeFile(envPath, envContent);
+
+      // Set file permissions to 600 (read/write only by owner) on Unix systems
+      if (process.platform !== "win32") {
+        try {
+          await fs.chmod(envPath, 0o600);
+          databaseLogger.info("Set .env file permissions to 600 (owner read/write only)", {
+            operation: "file_permissions_set",
+            file: envPath,
+          });
+        } catch (chmodError) {
+          databaseLogger.warn("Failed to set .env file permissions to 600", chmodError, {
+            operation: "chmod_failed",
+            file: envPath,
+            note: "Secrets may be readable by other users on the system",
+          });
+        }
+      }
 
       process.env[key] = value;
     } catch (error) {

@@ -89,8 +89,26 @@ export function WindowManager({ children }: WindowManagerProps) {
       const targetWindow = prev.find((w) => w.id === id);
       if (!targetWindow) return prev;
 
-      const newZIndex = ++nextZIndex.current;
-      return prev.map((w) => (w.id === id ? { ...w, zIndex: newZIndex } : w));
+      // Normalize z-indices to prevent unbounded growth
+      // Sort windows by current z-index
+      const sortedWindows = [...prev].sort((a, b) => a.zIndex - b.zIndex);
+
+      // Re-assign z-indices starting from 1000 with increments of 10
+      const BASE_Z_INDEX = 1000;
+      const Z_INDEX_INCREMENT = 10;
+
+      const normalizedWindows = sortedWindows.map((w, index) => ({
+        ...w,
+        zIndex: BASE_Z_INDEX + index * Z_INDEX_INCREMENT,
+      }));
+
+      // Assign the focused window the highest z-index
+      const maxZIndex = BASE_Z_INDEX + (normalizedWindows.length - 1) * Z_INDEX_INCREMENT;
+      nextZIndex.current = maxZIndex + Z_INDEX_INCREMENT;
+
+      return normalizedWindows.map((w) =>
+        w.id === id ? { ...w, zIndex: nextZIndex.current } : w,
+      );
     });
   }, []);
 

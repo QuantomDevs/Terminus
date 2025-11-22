@@ -104,7 +104,10 @@ const AppContent: FC = () => {
   const closeSidebar = () => setIsSidebarOpen(false);
 
   const handleKeyboardLayoutChange = () => {
-    fitCurrentTerminal();
+    // Delay terminal fit to allow CSS transition to complete
+    setTimeout(() => {
+      fitCurrentTerminal();
+    }, 300);
   };
 
   function handleKeyboardInput(input: string) {
