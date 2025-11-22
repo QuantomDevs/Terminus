@@ -23,7 +23,7 @@ const enableFileEncryption = process.env.DB_FILE_ENCRYPTION !== "false";
 const dbPath = path.join(dataDir, "db.sqlite");
 const encryptedDbPath = `${dbPath}.encrypted`;
 
-let actualDbPath = ":memory:";
+const actualDbPath = ":memory:";
 let memoryDatabase: Database.Database;
 let isNewDatabase = false;
 let sqlite: Database.Database;

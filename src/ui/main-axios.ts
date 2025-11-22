@@ -341,7 +341,7 @@ function createApiInstance(
         }
       }
 
-      // Handle 401 Unauthorized - force logout
+      // Handle 401 Unauthorized - conditional logout
       if (status === 401) {
         const isLoginEndpoint = url?.includes("/users/login");
         const hasToken = !!getAuthToken();
@@ -355,9 +355,33 @@ function createApiInstance(
           "/users/registration-allowed",
         ];
 
+        // Graceful error handling endpoints - show error UI instead of forcing logout
+        const gracefulErrorEndpoints = [
+          "/themes",
+          "/settings",
+          "/session",
+          "/credentials",
+          "/status",
+          "/metrics",
+        ];
+
         const isPublicEndpoint = publicEndpoints.some((endpoint) =>
           url?.includes(endpoint)
         );
+
+        const isGracefulErrorEndpoint = gracefulErrorEndpoints.some((endpoint) =>
+          url?.includes(endpoint)
+        );
+
+        if (isGracefulErrorEndpoint) {
+          // These endpoints should show error UI instead of forcing logout
+          console.warn(
+            "[AUTH] 401 on graceful error endpoint - showing error instead of logout:",
+            fullUrl
+          );
+          // Don't force logout - let the component handle the error
+          return Promise.reject(error);
+        }
 
         if (!isPublicEndpoint && hasToken) {
           // User had a valid token but got 401 - session expired
@@ -415,7 +439,7 @@ function isDev(): boolean {
   );
 }
 
-let apiHost = import.meta.env.VITE_API_HOST || "localhost";
+const apiHost = import.meta.env.VITE_API_HOST || "localhost";
 let apiPort = 30001;
 let configuredServerUrl: string | null = null;
 

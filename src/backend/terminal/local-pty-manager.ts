@@ -382,7 +382,7 @@ export async function startLocalTerminalServer() {
 
           // Determine shell based on platform (declare outside try block for error handling)
           let shell: string;
-          let shellArgs: string[] = [];
+          const shellArgs: string[] = [];
 
           try {
             const cols = data?.cols || 80;

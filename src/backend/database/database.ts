@@ -196,7 +196,7 @@ async function fetchGitHubAPI(
     if (!response.ok) {
       // Handle specific HTTP status codes
       let errorMessage = `GitHub API error: ${response.status} ${response.statusText}`;
-      let errorDetails: any = { status: response.status, endpoint };
+      const errorDetails: any = { status: response.status, endpoint };
 
       if (response.status === 404) {
         errorMessage =

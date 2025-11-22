@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { ColorPickerModal } from "../../../components/ui/ColorPickerModal";
 import { ThemeCard } from "../../../components/ui/ThemeCard";
 import { ThemeCardSkeleton } from "../../../components/ui/ThemeCardSkeleton";
+import { ErrorDisplay } from "../../../components/ui/ErrorDisplay";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import {
@@ -81,6 +82,10 @@ export const ColorSchemeSettings = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingThemeId, setEditingThemeId] = useState<number | null>(null);
+
+  // Error state
+  const [error, setError] = useState<Error | null>(null);
+  const [errorInfo, setErrorInfo] = useState<any>(null);
 
   // Modal states
   const [showNameModal, setShowNameModal] = useState(false);
@@ -171,19 +176,16 @@ export const ColorSchemeSettings = () => {
   };
 
   const handleCreateTheme = () => {
-    // Start with default theme colors for a brand new theme
-    const defaultTheme = DEFAULT_THEMES[0]; // Use "Default Dark" as base
-    const defaultColors = { ...defaultTheme.colors };
+    // Start with current theme colors from the document
+    const root = document.documentElement;
+    const computedStyle = getComputedStyle(root);
+    const defaultColors: Record<string, string> = {};
 
-    // Add all missing CSS variables with current default values
+    // Get all CSS variable values from current theme
     COLOR_VARIABLES.forEach((variable) => {
-      if (!defaultColors[variable.name]) {
-        const root = document.documentElement;
-        const computedStyle = getComputedStyle(root);
-        const value = computedStyle.getPropertyValue(variable.name).trim();
-        if (value) {
-          defaultColors[variable.name] = value;
-        }
+      const value = computedStyle.getPropertyValue(variable.name).trim();
+      if (value) {
+        defaultColors[variable.name] = value;
       }
     });
 

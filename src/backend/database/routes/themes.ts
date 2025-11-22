@@ -78,7 +78,7 @@ router.get("/:id", authenticateJWT, async (req: Request, res: Response) => {
 // POST /themes
 router.post("/", authenticateJWT, async (req: Request, res: Response) => {
   const userId = (req as any).user?.id;
-  const { name, colors } = req.body;
+  const { name, colors, author } = req.body;
 
   if (!userId) {
     return res.status(401).json({ error: "User not authenticated" });
@@ -99,6 +99,7 @@ router.post("/", authenticateJWT, async (req: Request, res: Response) => {
       userId,
       name,
       colors: colorsString,
+      author: author || null,
       isActive: false,
     });
 
@@ -128,7 +129,7 @@ router.post("/", authenticateJWT, async (req: Request, res: Response) => {
 router.put("/:id", authenticateJWT, async (req: Request, res: Response) => {
   const userId = (req as any).user?.id;
   const themeId = parseInt(req.params.id);
-  const { name, colors } = req.body;
+  const { name, colors, author } = req.body;
 
   if (!userId) {
     return res.status(401).json({ error: "User not authenticated" });
@@ -157,13 +158,18 @@ router.put("/:id", authenticateJWT, async (req: Request, res: Response) => {
     const colorsString =
       typeof colors === "string" ? colors : JSON.stringify(colors);
 
+    // Build update object - only include fields that were provided
+    const updateData: any = {
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (name !== undefined) updateData.name = name;
+    if (colors !== undefined) updateData.colors = colorsString;
+    if (author !== undefined) updateData.author = author || null;
+
     await db
       .update(colorThemes)
-      .set({
-        name: name || existingTheme[0].name,
-        colors: colorsString || existingTheme[0].colors,
-        updatedAt: new Date().toISOString(),
-      })
+      .set(updateData)
       .where(
         and(eq(colorThemes.id, themeId), eq(colorThemes.userId, userId))
       );
