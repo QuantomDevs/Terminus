@@ -108,6 +108,7 @@ EXPOSE 8443
 COPY --from=backend-build /usr/src/app/dist/backend ./dist/backend
 COPY --from=backend-build /usr/src/app/dist/types ./dist/types
 COPY --from=backend-build /usr/src/app/package*.json ./
+COPY scripts/healthcheck.js ./scripts/healthcheck.js
 
 # Create necessary directories
 RUN mkdir -p db/data uploads ssl
@@ -115,9 +116,9 @@ RUN mkdir -p db/data uploads ssl
 # Install only production dependencies
 RUN npm ci --omit=dev --omit=optional && npm cache clean --force
 
-# Health check for backend API
+# Health check for backend API (supports both HTTP and HTTPS)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:30001/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+    CMD node scripts/healthcheck.js
 
 CMD ["node", "dist/backend/backend/starter.js"]
 
@@ -137,6 +138,7 @@ EXPOSE 8443
 # Copy full web build (backend + frontend)
 COPY --from=web-build /usr/src/app/dist ./dist
 COPY --from=web-build /usr/src/app/package*.json ./
+COPY scripts/healthcheck.js ./scripts/healthcheck.js
 
 # Create necessary directories
 RUN mkdir -p db/data uploads ssl
@@ -144,9 +146,9 @@ RUN mkdir -p db/data uploads ssl
 # Install only production dependencies
 RUN npm ci --omit=dev --omit=optional && npm cache clean --force
 
-# Health check for web application
+# Health check for web application (supports both HTTP and HTTPS)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:30001/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+    CMD node scripts/healthcheck.js
 
 CMD ["node", "dist/backend/backend/starter.js"]
 
@@ -166,6 +168,7 @@ EXPOSE 8443
 # Copy full web build
 COPY --from=full-build /usr/src/app/dist ./dist
 COPY --from=full-build /usr/src/app/package*.json ./
+COPY scripts/healthcheck.js ./scripts/healthcheck.js
 
 # Copy Electron builds if available
 COPY --from=full-build /electron-builds ./downloads 2>/dev/null || true
@@ -176,9 +179,9 @@ RUN mkdir -p db/data uploads ssl downloads
 # Install only production dependencies
 RUN npm ci --omit=dev --omit=optional && npm cache clean --force
 
-# Health check for full application
+# Health check for full application (supports both HTTP and HTTPS)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:30001/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+    CMD node scripts/healthcheck.js
 
 CMD ["node", "dist/backend/backend/starter.js"]
 
