@@ -43,11 +43,68 @@ class Logger {
   private logCounts = new Map<string, { count: number; lastLog: number }>();
   private readonly RATE_LIMIT_WINDOW = 60000;
   private readonly RATE_LIMIT_MAX = 10;
+  private readonly CLEANUP_INTERVAL = 3600000; // 1 hour
+  private cleanupIntervalId?: NodeJS.Timeout;
 
   constructor(serviceName: string, serviceIcon: string, serviceColor: string) {
     this.serviceName = serviceName;
     this.serviceIcon = serviceIcon;
     this.serviceColor = serviceColor;
+
+    // Start cleanup interval to prevent memory leaks
+    this.startCleanup();
+  }
+
+  /**
+   * Cleanup old log count entries to prevent memory leaks
+   * Runs every hour and removes entries older than the rate limit window
+   */
+  private cleanupOldLogCounts(): void {
+    const now = Date.now();
+    const expiredEntries: string[] = [];
+
+    // Find expired entries
+    for (const [key, value] of this.logCounts.entries()) {
+      if (now - value.lastLog > this.RATE_LIMIT_WINDOW) {
+        expiredEntries.push(key);
+      }
+    }
+
+    // Remove expired entries
+    for (const key of expiredEntries) {
+      this.logCounts.delete(key);
+    }
+
+    // Log cleanup stats in debug mode
+    if (expiredEntries.length > 0 && process.env.NODE_ENV === "development") {
+      console.debug(
+        `[Logger Cleanup] Removed ${expiredEntries.length} expired log count entries`,
+      );
+    }
+  }
+
+  /**
+   * Start the periodic cleanup interval
+   */
+  private startCleanup(): void {
+    this.cleanupIntervalId = setInterval(() => {
+      this.cleanupOldLogCounts();
+    }, this.CLEANUP_INTERVAL);
+
+    // Unref the interval to allow process to exit
+    if (this.cleanupIntervalId.unref) {
+      this.cleanupIntervalId.unref();
+    }
+  }
+
+  /**
+   * Stop the cleanup interval (useful for testing or graceful shutdown)
+   */
+  public stopCleanup(): void {
+    if (this.cleanupIntervalId) {
+      clearInterval(this.cleanupIntervalId);
+      this.cleanupIntervalId = undefined;
+    }
   }
 
   private getTimeStamp(): string {

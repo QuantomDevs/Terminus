@@ -12,10 +12,12 @@ import { getSetting, saveSetting, validateEditorPath, listLocalFiles } from "@/u
 import { toast } from "sonner";
 import { Check, X, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useIsMounted } from "@/hooks/useIsMounted";
 
 interface FileManagerSettingsProps {}
 
 export function FileManagerSettings({}: FileManagerSettingsProps) {
+  const isMounted = useIsMounted();
   const [fileManagerDesign, setFileManagerDesign] = useState<string>("explorer");
   const [editorType, setEditorType] = useState<string>("internal");
   const [editorPath, setEditorPath] = useState<string>("");
@@ -43,15 +45,19 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
 
   const loadFileManagerDesignSetting = async () => {
     try {
-      setIsLoading(true);
+      if (isMounted()) setIsLoading(true);
       const response = await getSetting("file_manager_design");
-      setFileManagerDesign(response.value || "explorer");
+      if (isMounted()) {
+        setFileManagerDesign(response.value || "explorer");
+      }
     } catch (error) {
       console.error("Failed to load file manager design setting:", error);
       // Default to explorer if setting doesn't exist
-      setFileManagerDesign("explorer");
+      if (isMounted()) {
+        setFileManagerDesign("explorer");
+      }
     } finally {
-      setIsLoading(false);
+      if (isMounted()) setIsLoading(false);
     }
   };
 
@@ -69,11 +75,15 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
   const loadEditorTypeSetting = async () => {
     try {
       const response = await getSetting("file_editor_type");
-      setEditorType(response.value || "internal");
+      if (isMounted()) {
+        setEditorType(response.value || "internal");
+      }
     } catch (error) {
       console.error("Failed to load file editor type setting:", error);
       // Default to internal if setting doesn't exist
-      setEditorType("internal");
+      if (isMounted()) {
+        setEditorType("internal");
+      }
     }
   };
 
@@ -91,11 +101,15 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
   const loadEditorPathSetting = async () => {
     try {
       const response = await getSetting("file_editor_path");
-      setEditorPath(response.value || "");
+      if (isMounted()) {
+        setEditorPath(response.value || "");
+      }
     } catch (error) {
       console.error("Failed to load file editor path setting:", error);
       // Default to empty string if setting doesn't exist
-      setEditorPath("");
+      if (isMounted()) {
+        setEditorPath("");
+      }
     }
   };
 
@@ -113,11 +127,15 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
   const loadDefaultLayoutSetting = async () => {
     try {
       const response = await getSetting("file_manager_default_layout");
-      setDefaultLayout(response.value || "grid");
+      if (isMounted()) {
+        setDefaultLayout(response.value || "grid");
+      }
     } catch (error) {
       console.error("Failed to load default layout setting:", error);
       // Default to grid if setting doesn't exist
-      setDefaultLayout("grid");
+      if (isMounted()) {
+        setDefaultLayout("grid");
+      }
     }
   };
 
@@ -135,25 +153,33 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
   const loadLocalDefaultPathSetting = async () => {
     try {
       const response = await getSetting("file_manager_local_default_path");
-      setLocalDefaultPath(response.value || "");
+      if (isMounted()) {
+        setLocalDefaultPath(response.value || "");
+      }
     } catch (error) {
       console.error("Failed to load local default path setting:", error);
       // Default to empty string if setting doesn't exist
-      setLocalDefaultPath("");
+      if (isMounted()) {
+        setLocalDefaultPath("");
+      }
     }
   };
 
   const validateLocalPath = async (path: string) => {
     if (!path) {
-      setPathValidation("unchecked");
+      if (isMounted()) setPathValidation("unchecked");
       return;
     }
 
     try {
       await listLocalFiles(path);
-      setPathValidation("valid");
+      if (isMounted()) {
+        setPathValidation("valid");
+      }
     } catch (error) {
-      setPathValidation("invalid");
+      if (isMounted()) {
+        setPathValidation("invalid");
+      }
     }
   };
 
@@ -175,37 +201,57 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
   const loadColumnVisibilitySettings = async () => {
     try {
       const typeRes = await getSetting("file_manager_show_type");
-      setShowType(typeRes.value === "true" || typeRes.value === undefined);
+      if (isMounted()) {
+        setShowType(typeRes.value === "true" || typeRes.value === undefined);
+      }
     } catch (error) {
-      setShowType(true);
+      if (isMounted()) {
+        setShowType(true);
+      }
     }
 
     try {
       const sizeRes = await getSetting("file_manager_show_size");
-      setShowSize(sizeRes.value === "true" || sizeRes.value === undefined);
+      if (isMounted()) {
+        setShowSize(sizeRes.value === "true" || sizeRes.value === undefined);
+      }
     } catch (error) {
-      setShowSize(true);
+      if (isMounted()) {
+        setShowSize(true);
+      }
     }
 
     try {
       const modifiedRes = await getSetting("file_manager_show_modified");
-      setShowModified(modifiedRes.value === "true" || modifiedRes.value === undefined);
+      if (isMounted()) {
+        setShowModified(modifiedRes.value === "true" || modifiedRes.value === undefined);
+      }
     } catch (error) {
-      setShowModified(true);
+      if (isMounted()) {
+        setShowModified(true);
+      }
     }
 
     try {
       const permissionsRes = await getSetting("file_manager_show_permissions");
-      setShowPermissions(permissionsRes.value === "true" || permissionsRes.value === undefined);
+      if (isMounted()) {
+        setShowPermissions(permissionsRes.value === "true" || permissionsRes.value === undefined);
+      }
     } catch (error) {
-      setShowPermissions(true);
+      if (isMounted()) {
+        setShowPermissions(true);
+      }
     }
 
     try {
       const ownerRes = await getSetting("file_manager_show_owner");
-      setShowOwner(ownerRes.value === "true" || ownerRes.value === undefined);
+      if (isMounted()) {
+        setShowOwner(ownerRes.value === "true" || ownerRes.value === undefined);
+      }
     } catch (error) {
-      setShowOwner(true);
+      if (isMounted()) {
+        setShowOwner(true);
+      }
     }
   };
 
@@ -244,7 +290,7 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
       return;
     }
 
-    setIsValidatingEditor(true);
+    if (isMounted()) setIsValidatingEditor(true);
     try {
       const result = await validateEditorPath(editorPath);
 
@@ -257,18 +303,22 @@ export function FileManagerSettings({}: FileManagerSettingsProps) {
       console.error("Failed to validate editor path:", error);
       toast.error(error.message || "Failed to validate editor path");
     } finally {
-      setIsValidatingEditor(false);
+      if (isMounted()) setIsValidatingEditor(false);
     }
   };
 
   const loadDisplaySizeSetting = async () => {
     try {
       const response = await getSetting("file_manager_display_size");
-      setDisplaySize(response.value || "medium");
+      if (isMounted()) {
+        setDisplaySize(response.value || "medium");
+      }
     } catch (error) {
       console.error("Failed to load display size setting:", error);
       // Default to medium if setting doesn't exist
-      setDisplaySize("medium");
+      if (isMounted()) {
+        setDisplaySize("medium");
+      }
     }
   };
 

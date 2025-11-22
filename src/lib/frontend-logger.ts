@@ -26,11 +26,75 @@ class FrontendLogger {
   private serviceColor: string;
   private isDevelopment: boolean;
 
+  // Sensitive field names that should be redacted from logs
+  private static readonly SENSITIVE_FIELDS = [
+    "password",
+    "token",
+    "authorization",
+    "key",
+    "secret",
+    "apikey",
+    "api_key",
+    "accesstoken",
+    "access_token",
+    "refreshtoken",
+    "refresh_token",
+    "privatekey",
+    "private_key",
+    "jwt",
+    "bearer",
+    "credentials",
+    "passphrase",
+  ];
+
   constructor(serviceName: string, serviceIcon: string, serviceColor: string) {
     this.serviceName = serviceName;
     this.serviceIcon = serviceIcon;
     this.serviceColor = serviceColor;
     this.isDevelopment = process.env.NODE_ENV === "development";
+  }
+
+  /**
+   * Recursively sanitize an object by redacting sensitive fields
+   * @param obj - The object to sanitize
+   * @returns A new object with sensitive fields redacted
+   */
+  private sanitize(obj: any): any {
+    if (obj === null || obj === undefined) {
+      return obj;
+    }
+
+    // Handle primitive types
+    if (typeof obj !== "object") {
+      return obj;
+    }
+
+    // Handle arrays
+    if (Array.isArray(obj)) {
+      return obj.map((item) => this.sanitize(item));
+    }
+
+    // Handle objects
+    const sanitized: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      // Check if the key (lowercase) matches any sensitive field
+      const keyLower = key.toLowerCase();
+      const isSensitive = FrontendLogger.SENSITIVE_FIELDS.some((field) =>
+        keyLower.includes(field),
+      );
+
+      if (isSensitive) {
+        // Redact sensitive fields
+        sanitized[key] = "[REDACTED]";
+      } else if (typeof value === "object" && value !== null) {
+        // Recursively sanitize nested objects
+        sanitized[key] = this.sanitize(value);
+      } else {
+        sanitized[key] = value;
+      }
+    }
+
+    return sanitized;
   }
 
   private getTimeStamp(): string {
@@ -97,7 +161,9 @@ class FrontendLogger {
   ): void {
     if (!this.shouldLog(level)) return;
 
-    const formattedMessage = this.formatMessage(level, message, context);
+    // Sanitize context to remove sensitive data
+    const sanitizedContext = context ? this.sanitize(context) : context;
+    const formattedMessage = this.formatMessage(level, message, sanitizedContext);
 
     switch (level) {
       case "debug":
@@ -112,7 +178,9 @@ class FrontendLogger {
       case "error":
         console.error(formattedMessage);
         if (error) {
-          console.error("Error details:", error);
+          // Sanitize error object as well
+          const sanitizedError = this.sanitize(error);
+          console.error("Error details:", sanitizedError);
         }
         break;
       case "success":

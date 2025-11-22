@@ -5,15 +5,90 @@ import { colorThemes } from "../db/schema.js";
 import { AuthManager } from "../../utils/auth-manager.js";
 import { apiLogger } from "../../utils/logger.js";
 import type { Request, Response } from "express";
+import "../../types/express.js";
 
 const router = express.Router();
 const authManager = AuthManager.getInstance();
 const authenticateJWT = authManager.createAuthMiddleware();
 
+// Constants for validation
+const MAX_COLOR_JSON_SIZE = 1024 * 1024; // 1MB max
+const COLOR_REGEX = /^(#[0-9a-fA-F]{3,8}|rgb\(|rgba\(|hsl\(|hsla\(|oklch\(|var\()/;
+
+/**
+ * Validates color theme data to prevent injection attacks and malformed data
+ * @param colors - The colors data (string or object)
+ * @returns Validated colors object or error message
+ */
+function validateColors(colors: any): {
+  valid: boolean;
+  colors?: Record<string, string>;
+  error?: string;
+} {
+  try {
+    // Parse if string
+    let colorsObj: any;
+    if (typeof colors === "string") {
+      // Check size before parsing
+      if (colors.length > MAX_COLOR_JSON_SIZE) {
+        return { valid: false, error: "Colors JSON exceeds maximum size (1MB)" };
+      }
+      try {
+        colorsObj = JSON.parse(colors);
+      } catch {
+        return { valid: false, error: "Invalid JSON in colors field" };
+      }
+    } else if (typeof colors === "object" && colors !== null) {
+      colorsObj = colors;
+    } else {
+      return { valid: false, error: "Colors must be object or JSON string" };
+    }
+
+    // Verify it's a flat object
+    if (typeof colorsObj !== "object" || Array.isArray(colorsObj)) {
+      return { valid: false, error: "Colors must be a flat object" };
+    }
+
+    // Validate each key-value pair
+    const validatedColors: Record<string, string> = {};
+    for (const [key, value] of Object.entries(colorsObj)) {
+      // Validate key is a string starting with --
+      if (typeof key !== "string" || !key.startsWith("--")) {
+        return {
+          valid: false,
+          error: `Invalid color variable name: ${key}. Must start with '--'`,
+        };
+      }
+
+      // Validate value is a string
+      if (typeof value !== "string") {
+        return {
+          valid: false,
+          error: `Invalid color value for ${key}. Must be a string`,
+        };
+      }
+
+      // Validate value looks like a color (basic check)
+      if (!COLOR_REGEX.test(value.trim())) {
+        return {
+          valid: false,
+          error: `Invalid color format for ${key}: ${value}`,
+        };
+      }
+
+      validatedColors[key] = value;
+    }
+
+    return { valid: true, colors: validatedColors };
+  } catch (err) {
+    return { valid: false, error: "Failed to validate colors data" };
+  }
+}
+
 // Route: Get all themes for the current user
 // GET /themes
 router.get("/", authenticateJWT, async (req: Request, res: Response) => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
 
   if (!userId) {
     return res.status(401).json({ error: "User not authenticated" });
@@ -39,7 +114,7 @@ router.get("/", authenticateJWT, async (req: Request, res: Response) => {
 // Route: Get a specific theme by ID
 // GET /themes/:id
 router.get("/:id", authenticateJWT, async (req: Request, res: Response) => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
   const themeId = parseInt(req.params.id);
 
   if (!userId) {
@@ -77,7 +152,7 @@ router.get("/:id", authenticateJWT, async (req: Request, res: Response) => {
 // Route: Create a new theme
 // POST /themes
 router.post("/", authenticateJWT, async (req: Request, res: Response) => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
   const { name, colors, author } = req.body;
 
   if (!userId) {
@@ -88,12 +163,17 @@ router.post("/", authenticateJWT, async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Name and colors are required" });
   }
 
+  // Validate colors data
+  const validation = validateColors(colors);
+  if (!validation.valid) {
+    return res.status(400).json({ error: validation.error });
+  }
+
   try {
     const db = getDb();
 
-    // Convert colors object to JSON string if it's not already
-    const colorsString =
-      typeof colors === "string" ? colors : JSON.stringify(colors);
+    // Convert validated colors to JSON string
+    const colorsString = JSON.stringify(validation.colors);
 
     const result = await db.insert(colorThemes).values({
       userId,
@@ -127,7 +207,7 @@ router.post("/", authenticateJWT, async (req: Request, res: Response) => {
 // Route: Update a theme
 // PUT /themes/:id
 router.put("/:id", authenticateJWT, async (req: Request, res: Response) => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
   const themeId = parseInt(req.params.id);
   const { name, colors, author } = req.body;
 
@@ -137,6 +217,14 @@ router.put("/:id", authenticateJWT, async (req: Request, res: Response) => {
 
   if (isNaN(themeId)) {
     return res.status(400).json({ error: "Invalid theme ID" });
+  }
+
+  // Validate colors if provided
+  if (colors !== undefined) {
+    const validation = validateColors(colors);
+    if (!validation.valid) {
+      return res.status(400).json({ error: validation.error });
+    }
   }
 
   try {
@@ -154,17 +242,17 @@ router.put("/:id", authenticateJWT, async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Theme not found" });
     }
 
-    // Convert colors object to JSON string if it's not already
-    const colorsString =
-      typeof colors === "string" ? colors : JSON.stringify(colors);
-
     // Build update object - only include fields that were provided
     const updateData: any = {
       updatedAt: new Date().toISOString(),
     };
 
     if (name !== undefined) updateData.name = name;
-    if (colors !== undefined) updateData.colors = colorsString;
+    if (colors !== undefined) {
+      // Re-validate and use validated colors
+      const validation = validateColors(colors);
+      updateData.colors = JSON.stringify(validation.colors);
+    }
     if (author !== undefined) updateData.author = author || null;
 
     await db
@@ -194,7 +282,7 @@ router.put("/:id", authenticateJWT, async (req: Request, res: Response) => {
 // Route: Delete a theme
 // DELETE /themes/:id
 router.delete("/:id", authenticateJWT, async (req: Request, res: Response) => {
-  const userId = (req as any).userId;
+  const userId = req.userId;
   const themeId = parseInt(req.params.id);
 
   if (!userId) {
@@ -249,7 +337,7 @@ router.put(
   "/:id/activate",
   authenticateJWT,
   async (req: Request, res: Response) => {
-    const userId = (req as any).userId;
+    const userId = req.userId;
     const themeId = parseInt(req.params.id);
 
     if (!userId) {
@@ -316,7 +404,7 @@ router.post(
   "/import",
   authenticateJWT,
   async (req: Request, res: Response) => {
-    const userId = (req as any).userId;
+    const userId = req.userId;
     const themeData = req.body;
 
     if (!userId) {
@@ -328,6 +416,19 @@ router.post(
       return res
         .status(400)
         .json({ error: "Theme name and colors are required" });
+    }
+
+    // Validate name length
+    if (typeof themeData.name !== "string" || themeData.name.length > 100) {
+      return res
+        .status(400)
+        .json({ error: "Theme name must be a string (max 100 characters)" });
+    }
+
+    // Validate colors using the validation function
+    const validation = validateColors(themeData.colors);
+    if (!validation.valid) {
+      return res.status(400).json({ error: validation.error });
     }
 
     try {
@@ -350,41 +451,56 @@ router.post(
         finalName = `${themeData.name} (Imported)`;
       }
 
-      // Parse colors if string, validate if object
-      let colorsString: string;
-      if (typeof themeData.colors === "string") {
-        try {
-          JSON.parse(themeData.colors);
-          colorsString = themeData.colors;
-        } catch {
-          return res.status(400).json({ error: "Invalid JSON in colors field" });
-        }
-      } else if (typeof themeData.colors === "object") {
-        colorsString = JSON.stringify(themeData.colors);
-      } else {
-        return res
-          .status(400)
-          .json({ error: "Colors must be object or JSON string" });
-      }
+      // Use validated colors
+      const colorsString = JSON.stringify(validation.colors);
 
-      // Parse tags if provided
+      // Validate and parse tags if provided
       let tagsString: string | undefined;
       if (themeData.tags) {
         if (typeof themeData.tags === "string") {
-          tagsString = themeData.tags;
+          // Validate it's valid JSON array if string
+          try {
+            const parsed = JSON.parse(themeData.tags);
+            if (Array.isArray(parsed)) {
+              tagsString = themeData.tags;
+            }
+          } catch {
+            // Invalid JSON, ignore tags
+            apiLogger.warn("Invalid tags JSON in import, ignoring", {
+              userId,
+              name: finalName,
+            });
+          }
         } else if (Array.isArray(themeData.tags)) {
           tagsString = JSON.stringify(themeData.tags);
         }
       }
+
+      // Validate optional fields
+      const description =
+        typeof themeData.description === "string" &&
+        themeData.description.length <= 500
+          ? themeData.description
+          : null;
+
+      const author =
+        typeof themeData.author === "string" && themeData.author.length <= 100
+          ? themeData.author
+          : null;
+
+      const version =
+        typeof themeData.version === "string" && themeData.version.length <= 20
+          ? themeData.version
+          : "1.0.0";
 
       // Create theme with imported data
       const result = await db.insert(colorThemes).values({
         userId,
         name: finalName,
         colors: colorsString,
-        description: themeData.description || null,
-        author: themeData.author || null,
-        version: themeData.version || "1.0.0",
+        description,
+        author,
+        version,
         tags: tagsString || null,
         isActive: false,
         isFavorite: false,
@@ -418,7 +534,7 @@ router.get(
   "/:id/export",
   authenticateJWT,
   async (req: Request, res: Response) => {
-    const userId = (req as any).userId;
+    const userId = req.userId;
     const themeId = parseInt(req.params.id);
 
     if (!userId) {

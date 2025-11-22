@@ -45,17 +45,21 @@ export function Server({
   }, [hostConfig]);
 
   React.useEffect(() => {
+    let cancelled = false;
+
     const fetchLatestHostConfig = async () => {
       if (hostConfig?.id) {
         try {
           const { getSSHHosts } = await import("@/ui/main-axios.ts");
           const hosts = await getSSHHosts();
           const updatedHost = hosts.find((h) => h.id === hostConfig.id);
-          if (updatedHost) {
+          if (updatedHost && !cancelled) {
             setCurrentHostConfig(updatedHost);
           }
         } catch (error) {
-          toast.error(t("serverStats.failedToFetchHostConfig"));
+          if (!cancelled) {
+            toast.error(t("serverStats.failedToFetchHostConfig"));
+          }
         }
       }
     };
@@ -68,18 +72,22 @@ export function Server({
           const { getSSHHosts } = await import("@/ui/main-axios.ts");
           const hosts = await getSSHHosts();
           const updatedHost = hosts.find((h) => h.id === hostConfig.id);
-          if (updatedHost) {
+          if (updatedHost && !cancelled) {
             setCurrentHostConfig(updatedHost);
           }
         } catch (error) {
-          toast.error(t("serverStats.failedToFetchHostConfig"));
+          if (!cancelled) {
+            toast.error(t("serverStats.failedToFetchHostConfig"));
+          }
         }
       }
     };
 
     window.addEventListener("ssh-hosts:changed", handleHostsChanged);
-    return () =>
+    return () => {
+      cancelled = true;
       window.removeEventListener("ssh-hosts:changed", handleHostsChanged);
+    };
   }, [hostConfig?.id]);
 
   React.useEffect(() => {
