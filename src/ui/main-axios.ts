@@ -30,7 +30,7 @@ import {
   handleAuthError,
 } from "../utils/auth-utils.js";
 import { toast } from "sonner";
-import { getErrorMessage, getHttpErrorCode } from "../utils/error-handler.js";
+import { getErrorMessage, getHttpErrorCode } from "./utils/error-handler.js";
 
 interface FileManagerOperation {
   name: string;

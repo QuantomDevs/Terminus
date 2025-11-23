@@ -891,7 +891,6 @@ export function CredentialEditor({
                                   placeholder={t(
                                     "placeholders.pastePrivateKey",
                                   )}
-                                  extensions={[codeMirrorTheme]}
                                   className="border border-input rounded-md"
                                   minHeight="120px"
                                   basicSetup={{
@@ -904,6 +903,7 @@ export function CredentialEditor({
                                     scrollPastEnd: false,
                                   }}
                                   extensions={[
+                                    codeMirrorTheme,
                                     EditorView.theme({
                                       ".cm-scroller": {
                                         overflow: "auto",

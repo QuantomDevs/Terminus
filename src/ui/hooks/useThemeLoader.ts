@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { getThemes } from "../main-axios";
-import { frontendLogger } from "../../lib/frontend-logger";
+import { systemLogger } from "../../lib/frontend-logger";
 
 /**
  * Hook to load and apply the active theme after authentication
@@ -23,7 +23,7 @@ export function useThemeLoader(isAuthenticated: boolean) {
         const activeTheme = themes.find((theme) => theme.isActive);
 
         if (!activeTheme) {
-          frontendLogger.info("No active theme found, using default CSS variables");
+          systemLogger.info("No active theme found, using default CSS variables");
           return;
         }
 
@@ -40,12 +40,12 @@ export function useThemeLoader(isAuthenticated: boolean) {
           }
         });
 
-        frontendLogger.success(`Theme "${activeTheme.name}" loaded and applied`, {
+        systemLogger.success(`Theme "${activeTheme.name}" loaded and applied`, {
           themeId: activeTheme.id,
           colorCount: Object.keys(colors).length,
         });
       } catch (error) {
-        frontendLogger.error("Failed to load active theme", error, {
+        systemLogger.error("Failed to load active theme", error, {
           operation: "useThemeLoader",
         });
       }
