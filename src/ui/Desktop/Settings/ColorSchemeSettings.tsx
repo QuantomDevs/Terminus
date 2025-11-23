@@ -359,7 +359,22 @@ export const ColorSchemeSettings = () => {
 
   const handleExportTheme = async (themeId: number) => {
     try {
-      const exportData: ThemeExportData = await exportTheme(themeId);
+      let exportData: ThemeExportData;
+
+      // Special handling for default theme
+      if (themeId === DEFAULT_THEME_ID) {
+        // Create export data directly from DEFAULT_THEME constants
+        exportData = {
+          name: DEFAULT_THEME.name,
+          colors: DEFAULT_THEME.colors,
+          author: DEFAULT_THEME.author,
+          description: DEFAULT_THEME.description || "The default Terminus color scheme",
+          version: "1.0.0",
+        };
+      } else {
+        // Normal export for user themes
+        exportData = await exportTheme(themeId);
+      }
 
       // Create JSON file and trigger download
       const blob = new Blob([JSON.stringify(exportData, null, 2)], {
