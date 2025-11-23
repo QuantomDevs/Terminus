@@ -137,7 +137,8 @@ async function initializeCompleteDatabase(): Promise<void> {
         scopes TEXT DEFAULT 'openid email profile',
         totp_secret TEXT,
         totp_enabled INTEGER NOT NULL DEFAULT 0,
-        totp_backup_codes TEXT
+        totp_backup_codes TEXT,
+        language TEXT DEFAULT 'en'
     );
 
     CREATE TABLE IF NOT EXISTS settings (
@@ -248,6 +249,13 @@ async function initializeCompleteDatabase(): Promise<void> {
         name TEXT NOT NULL,
         colors TEXT NOT NULL,
         is_active INTEGER NOT NULL DEFAULT 0,
+        description TEXT,
+        author TEXT,
+        version TEXT DEFAULT '1.0.0',
+        tags TEXT,
+        is_favorite INTEGER DEFAULT 0,
+        duplicate_count INTEGER DEFAULT 0,
+        last_used TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users (id)
@@ -347,6 +355,7 @@ const migrateSchema = () => {
   addColumnIfNotExists("users", "totp_secret", "TEXT");
   addColumnIfNotExists("users", "totp_enabled", "INTEGER NOT NULL DEFAULT 0");
   addColumnIfNotExists("users", "totp_backup_codes", "TEXT");
+  addColumnIfNotExists("users", "language", "TEXT DEFAULT 'en'");
 
   addColumnIfNotExists("ssh_data", "name", "TEXT");
   addColumnIfNotExists("ssh_data", "folder", "TEXT");
@@ -436,6 +445,15 @@ const migrateSchema = () => {
   addColumnIfNotExists("file_manager_recent", "host_id", "INTEGER NOT NULL");
   addColumnIfNotExists("file_manager_pinned", "host_id", "INTEGER NOT NULL");
   addColumnIfNotExists("file_manager_shortcuts", "host_id", "INTEGER NOT NULL");
+
+  // Color themes columns
+  addColumnIfNotExists("color_themes", "description", "TEXT");
+  addColumnIfNotExists("color_themes", "author", "TEXT");
+  addColumnIfNotExists("color_themes", "version", "TEXT DEFAULT '1.0.0'");
+  addColumnIfNotExists("color_themes", "tags", "TEXT");
+  addColumnIfNotExists("color_themes", "is_favorite", "INTEGER DEFAULT 0");
+  addColumnIfNotExists("color_themes", "duplicate_count", "INTEGER DEFAULT 0");
+  addColumnIfNotExists("color_themes", "last_used", "TEXT");
 
   databaseLogger.success("Schema migration completed", {
     operation: "schema_migration",
