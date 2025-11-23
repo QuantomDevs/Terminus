@@ -6,6 +6,7 @@ import type { SSHHost } from "../../../../types";
 import { readRemoteFileContent, saveRemoteFileContent } from "../../../main-axios";
 import { Save, Loader2, AlertCircle, X } from "lucide-react";
 import { Button } from "../../../../components/ui/button";
+import { registerMonacoTheme } from "../../../utils/editor-theme-adapter";
 
 interface RemoteEditorProps {
   filePath: string;
@@ -33,6 +34,7 @@ const RemoteEditor: React.FC<RemoteEditorProps> = ({
     encoding: string;
     mimeType: string;
   } | null>(null);
+  const [editorTheme, setEditorTheme] = useState<string>("vs-dark");
 
   const editorRef = useRef<any>(null);
   const fileName = filePath.split("/").pop() || "file";
@@ -205,6 +207,11 @@ const RemoteEditor: React.FC<RemoteEditorProps> = ({
   const handleEditorDidMount = (editor: any, monaco: any) => {
     editorRef.current = editor;
 
+    // Register and apply dynamic theme based on app's CSS variables
+    const themeName = registerMonacoTheme(monaco);
+    setEditorTheme(themeName);
+    monaco.editor.setTheme(themeName);
+
     // Add save command to editor
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       handleSave();
@@ -308,7 +315,7 @@ const RemoteEditor: React.FC<RemoteEditorProps> = ({
           value={content}
           onChange={handleEditorChange}
           onMount={handleEditorDidMount}
-          theme="vs-dark"
+          theme={editorTheme}
           options={{
             fontSize: 14,
             minimap: { enabled: true },

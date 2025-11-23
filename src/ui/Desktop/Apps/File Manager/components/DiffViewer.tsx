@@ -18,6 +18,7 @@ import {
   connectSSH,
 } from "@/ui/main-axios";
 import type { FileItem, SSHHost } from "@/types/index";
+import { registerMonacoTheme } from "@/ui/utils/editor-theme-adapter";
 
 interface DiffViewerProps {
   file1: FileItem;
@@ -43,6 +44,14 @@ export function DiffViewer({
     "side-by-side",
   );
   const [showLineNumbers, setShowLineNumbers] = useState(true);
+  const [editorTheme, setEditorTheme] = useState<string>("vs-dark");
+
+  // Handle diff editor mount to register custom theme
+  const handleDiffEditorMount = (_editor: any, monaco: any) => {
+    const themeName = registerMonacoTheme(monaco);
+    setEditorTheme(themeName);
+    monaco.editor.setTheme(themeName);
+  };
 
   const ensureSSHConnection = async () => {
     try {
@@ -313,7 +322,8 @@ export function DiffViewer({
           original={content1}
           modified={content2}
           language={getFileLanguage(file1.name)}
-          theme="vs-dark"
+          theme={editorTheme}
+          onMount={handleDiffEditorMount}
           options={{
             renderSideBySide: diffMode === "side-by-side",
             lineNumbers: showLineNumbers ? "on" : "off",

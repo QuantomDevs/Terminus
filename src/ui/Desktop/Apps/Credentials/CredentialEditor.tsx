@@ -29,13 +29,13 @@ import {
 } from "@/ui/main-axios";
 import { useTranslation } from "react-i18next";
 import CodeMirror from "@uiw/react-codemirror";
-import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView } from "@codemirror/view";
 import type {
   Credential,
   CredentialEditorProps,
   CredentialData,
 } from "../../../../types/index.js";
+import { generateCodeMirrorTheme } from "@/ui/utils/editor-theme-adapter";
 
 export function CredentialEditor({
   editingCredential,
@@ -59,6 +59,9 @@ export function CredentialEditor({
   const [publicKeyDetectionLoading, setPublicKeyDetectionLoading] =
     useState(false);
   const publicKeyDetectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Generate dynamic CodeMirror theme from CSS variables
+  const codeMirrorTheme = React.useMemo(() => generateCodeMirrorTheme(), []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -888,7 +891,7 @@ export function CredentialEditor({
                                   placeholder={t(
                                     "placeholders.pastePrivateKey",
                                   )}
-                                  theme={oneDark}
+                                  extensions={[codeMirrorTheme]}
                                   className="border border-input rounded-md"
                                   minHeight="120px"
                                   basicSetup={{
