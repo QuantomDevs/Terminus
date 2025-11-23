@@ -535,15 +535,17 @@ export const ColorSchemeSettings = () => {
 
       {/* Color Editor Panel (shown when creating/editing) */}
       {isEditorOpen && (
-        <div className="fixed inset-0 z-[999998] flex items-center justify-center"
+        <div className="fixed inset-0 flex items-center justify-center"
           style={{
             backdropFilter: "blur(8px)",
+            zIndex: "var(--z-popover)",
             backgroundColor: "rgba(0, 0, 0, 0.5)",
           }}
           onClick={() => setIsEditorOpen(false)}
         >
           <div
             className="flex flex-col rounded-lg border-2 border-[var(--color-dark-border)] bg-[var(--color-dark-bg)] shadow-2xl max-h-[90vh] overflow-hidden w-full max-w-4xl"
+            style={{ zIndex: "calc(var(--z-popover) - 1)" }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}

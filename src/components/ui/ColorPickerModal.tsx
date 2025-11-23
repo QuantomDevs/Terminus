@@ -120,7 +120,7 @@ export const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
     <div
       className="fixed inset-0 flex items-center justify-center"
       style={{
-        zIndex: "var(--z-modal-backdrop)",
+        zIndex: "var(--z-popover)",
         backdropFilter: "blur(8px)",
         backgroundColor: "rgba(0, 0, 0, 0.5)",
       }}
@@ -128,6 +128,7 @@ export const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
     >
       <div
         className="flex flex-col gap-4 rounded-lg border-2 border-[var(--color-dark-border)] bg-[var(--color-dark-bg)] p-6 shadow-2xl max-h-[90vh] overflow-y-auto max-w-[600px]"
+        style={{ zIndex: "calc(var(--z-popover) + 1)" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
