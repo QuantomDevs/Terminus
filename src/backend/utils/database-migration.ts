@@ -221,57 +221,31 @@ export class DatabaseMigration {
         readonly: true,
       });
 
-      const memoryDb = new Database(":memory:");
-
       try {
         const tables = originalDb
           .prepare(
             `
-            SELECT name, sql FROM sqlite_master
+            SELECT name FROM sqlite_master
             WHERE type='table' AND name NOT LIKE 'sqlite_%'
           `,
           )
-          .all() as { name: string; sql: string }[];
+          .all() as { name: string }[];
+
+        migratedTables = tables.length;
 
         for (const table of tables) {
-          memoryDb.exec(table.sql);
-          migratedTables++;
+          const count = originalDb
+            .prepare(`SELECT COUNT(*) as count FROM ${table.name}`)
+            .get() as { count: number };
+          migratedRows += count.count;
         }
 
-        memoryDb.exec("PRAGMA foreign_keys = OFF");
-
-        for (const table of tables) {
-          const rows = originalDb.prepare(`SELECT * FROM ${table.name}`).all();
-
-          if (rows.length > 0) {
-            const columns = Object.keys(rows[0]);
-            const placeholders = columns.map(() => "?").join(", ");
-            const insertStmt = memoryDb.prepare(
-              `INSERT INTO ${table.name} (${columns.join(", ")}) VALUES (${placeholders})`,
-            );
-
-            const insertTransaction = memoryDb.transaction(
-              (dataRows: any[]) => {
-                for (const row of dataRows) {
-                  const values = columns.map((col) => row[col]);
-                  insertStmt.run(values);
-                }
-              },
-            );
-
-            insertTransaction(rows);
-            migratedRows += rows.length;
-          }
-        }
-
-        memoryDb.exec("PRAGMA foreign_keys = ON");
-
-        const fkCheckResult = memoryDb
+        const fkCheckResult = originalDb
           .prepare("PRAGMA foreign_key_check")
           .all();
         if (fkCheckResult.length > 0) {
           databaseLogger.error(
-            "Foreign key constraints violations detected after migration",
+            "Foreign key constraint violations detected in source database",
             null,
             {
               operation: "migration_fk_check_failed",
@@ -279,22 +253,19 @@ export class DatabaseMigration {
             },
           );
           throw new Error(
-            `Foreign key violations detected: ${JSON.stringify(fkCheckResult)}`,
+            `Foreign key violations detected in source database: ${JSON.stringify(fkCheckResult)}`,
           );
         }
 
-        const verificationPassed = await this.verifyMigration(
-          originalDb,
-          memoryDb,
-        );
-        if (!verificationPassed) {
-          throw new Error("Migration integrity verification failed");
-        }
+        databaseLogger.info("Starting stream-based database encryption", {
+          operation: "migration_encrypt_start",
+          tables: migratedTables,
+          rows: migratedRows,
+          sourceSize: fs.statSync(this.unencryptedDbPath).size,
+        });
 
-        const buffer = memoryDb.serialize();
-
-        await DatabaseFileEncryption.encryptDatabaseFromBuffer(
-          buffer,
+        await DatabaseFileEncryption.encryptDatabaseFile(
+          this.unencryptedDbPath,
           this.encryptedDbPath,
         );
 
@@ -302,6 +273,27 @@ export class DatabaseMigration {
           !DatabaseFileEncryption.isEncryptedDatabaseFile(this.encryptedDbPath)
         ) {
           throw new Error("Encrypted database file verification failed");
+        }
+
+        const verificationDb = new Database(this.unencryptedDbPath, {
+          readonly: true,
+        });
+        const encryptedBuffer = await DatabaseFileEncryption.decryptDatabaseToBuffer(
+          this.encryptedDbPath,
+        );
+        const verifyDb = new Database(encryptedBuffer);
+
+        try {
+          const verificationPassed = await this.verifyMigration(
+            verificationDb,
+            verifyDb,
+          );
+          if (!verificationPassed) {
+            throw new Error("Migration integrity verification failed");
+          }
+        } finally {
+          verificationDb.close();
+          verifyDb.close();
         }
 
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -328,7 +320,6 @@ export class DatabaseMigration {
         };
       } finally {
         originalDb.close();
-        memoryDb.close();
       }
     } catch (error) {
       const errorMessage =

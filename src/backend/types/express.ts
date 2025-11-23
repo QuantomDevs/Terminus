@@ -2,7 +2,7 @@
  * Express Request type extensions for authentication middleware
  */
 
-import { Request } from "express";
+import type { Request } from "express";
 
 /**
  * Augment Express Request interface to include userId from JWT authentication middleware

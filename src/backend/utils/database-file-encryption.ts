@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import fs from "fs";
+import { pipeline } from "stream/promises";
 import path from "path";
 import { databaseLogger } from "./logger.js";
 import { SystemCrypto } from "./system-crypto.js";
@@ -72,17 +73,23 @@ class DatabaseFileEncryption {
     const metadataPath = `${encryptedPath}${this.METADATA_FILE_SUFFIX}`;
 
     try {
-      const sourceData = fs.readFileSync(sourcePath);
+      const stats = fs.statSync(sourcePath);
+      const fileSize = stats.size;
 
       const key = await this.systemCrypto.getDatabaseKey();
-
       const iv = crypto.randomBytes(16);
 
       const cipher = crypto.createCipheriv(this.ALGORITHM, key, iv) as any;
-      const encrypted = Buffer.concat([
-        cipher.update(sourceData),
-        cipher.final(),
-      ]);
+
+      const readStream = fs.createReadStream(sourcePath, { highWaterMark: 64 * 1024 });
+      const writeStream = fs.createWriteStream(encryptedPath);
+
+      await pipeline(
+        readStream,
+        cipher,
+        writeStream
+      );
+
       const tag = cipher.getAuthTag();
 
       const metadata: EncryptedFileMetadata = {
@@ -94,20 +101,25 @@ class DatabaseFileEncryption {
         keySource: "SystemCrypto",
       };
 
-      fs.writeFileSync(encryptedPath, encrypted);
       fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
 
-      databaseLogger.info("Database file encrypted successfully", {
-        operation: "database_file_encryption",
+      const encryptedSize = fs.statSync(encryptedPath).size;
+
+      databaseLogger.info("Database file encrypted successfully (streaming)", {
+        operation: "database_file_encryption_stream",
         sourcePath,
         encryptedPath,
-        fileSize: sourceData.length,
-        encryptedSize: encrypted.length,
+        fileSize,
+        encryptedSize,
         fingerprintPrefix: metadata.fingerprint,
       });
 
       return encryptedPath;
     } catch (error) {
+      if (fs.existsSync(encryptedPath)) {
+        fs.unlinkSync(encryptedPath);
+      }
+
       databaseLogger.error("Failed to encrypt database file", error, {
         operation: "database_file_encryption_failed",
         sourcePath,
@@ -205,7 +217,7 @@ class DatabaseFileEncryption {
       const metadataContent = fs.readFileSync(metadataPath, "utf8");
       const metadata: EncryptedFileMetadata = JSON.parse(metadataContent);
 
-      const encryptedData = fs.readFileSync(encryptedPath);
+      const encryptedSize = fs.statSync(encryptedPath).size;
 
       let key: Buffer;
       if (metadata.version === "v2") {
@@ -236,24 +248,32 @@ class DatabaseFileEncryption {
       ) as any;
       decipher.setAuthTag(Buffer.from(metadata.tag, "hex"));
 
-      const decrypted = Buffer.concat([
-        decipher.update(encryptedData),
-        decipher.final(),
-      ]);
+      const readStream = fs.createReadStream(encryptedPath, { highWaterMark: 64 * 1024 });
+      const writeStream = fs.createWriteStream(decryptedPath);
 
-      fs.writeFileSync(decryptedPath, decrypted);
+      await pipeline(
+        readStream,
+        decipher,
+        writeStream
+      );
 
-      databaseLogger.info("Database file decrypted successfully", {
-        operation: "database_file_decryption",
+      const decryptedSize = fs.statSync(decryptedPath).size;
+
+      databaseLogger.info("Database file decrypted successfully (streaming)", {
+        operation: "database_file_decryption_stream",
         encryptedPath,
         decryptedPath,
-        encryptedSize: encryptedData.length,
-        decryptedSize: decrypted.length,
+        encryptedSize,
+        decryptedSize,
         fingerprintPrefix: metadata.fingerprint,
       });
 
       return decryptedPath;
     } catch (error) {
+      if (fs.existsSync(decryptedPath)) {
+        fs.unlinkSync(decryptedPath);
+      }
+
       databaseLogger.error("Failed to decrypt database file", error, {
         operation: "database_file_decryption_failed",
         encryptedPath,

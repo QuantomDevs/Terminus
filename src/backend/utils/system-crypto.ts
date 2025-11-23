@@ -270,10 +270,11 @@ class SystemCrypto {
             file: envPath,
           });
         } catch (chmodError) {
-          databaseLogger.warn("Failed to set .env file permissions to 600", chmodError, {
+          databaseLogger.warn("Failed to set .env file permissions to 600", {
             operation: "chmod_failed",
             file: envPath,
             note: "Secrets may be readable by other users on the system",
+            error: chmodError instanceof Error ? chmodError.message : "Unknown error",
           });
         }
       }

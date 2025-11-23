@@ -30,6 +30,7 @@ import {
   handleAuthError,
 } from "../utils/auth-utils.js";
 import { toast } from "sonner";
+import { getErrorMessage, getHttpErrorCode } from "../utils/error-handler.js";
 
 interface FileManagerOperation {
   name: string;
@@ -286,11 +287,16 @@ function createApiInstance(
       const url = error.config?.url || "UNKNOWN";
       const fullUrl = error.config ? `${error.config.baseURL}${url}` : url;
       const status = error.response?.status;
-      const message =
+      const rawMessage =
         (error.response?.data as any)?.error ||
         (error as Error).message ||
         "Unknown error";
       const errorCode = (error.response?.data as any)?.code || error.code;
+
+      const translatedMessage = getErrorMessage(error);
+
+      (error as any).translatedMessage = translatedMessage;
+      (error as any).errorCode = errorCode;
 
       const context: LogContext = {
         requestId,
@@ -299,7 +305,8 @@ function createApiInstance(
         status,
         responseTime,
         errorCode,
-        errorMessage: message,
+        errorMessage: rawMessage,
+        translatedMessage,
         operation: "request_error",
       };
 
@@ -329,13 +336,13 @@ function createApiInstance(
           // Suppress auth error logs - they are expected when user is not logged in
           // logger.authError(method, fullUrl, context);
         } else if (status === 0 || !status) {
-          logger.networkError(method, fullUrl, message, context);
+          logger.networkError(method, fullUrl, translatedMessage, context);
         } else {
           logger.requestError(
             method,
             fullUrl,
             status || 0,
-            message,
+            translatedMessage,
             responseTime,
             context,
           );
