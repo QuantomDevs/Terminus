@@ -72,6 +72,8 @@ export function ThemeCard({
     setIsRenaming(false);
   };
 
+
+
   // Color variables with labels for tooltips
   const colorVariables = [
     { name: "--background", label: "Background" },
@@ -222,7 +224,7 @@ export function ThemeCard({
                     />
                   </TooltipTrigger>
                   <TooltipContent side="top" className="bg-[var(--color-dark-bg)] border-[var(--color-dark-border)]">
-                    <p className="text-xs font-medium">{variable.label}</p>
+                    <p className="text-xs text-gray-400 font-medium">{variable.label}</p>
                     <p className="text-xs text-gray-400 font-mono">{colorValue}</p>
                   </TooltipContent>
                 </Tooltip>
