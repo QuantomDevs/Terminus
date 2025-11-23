@@ -25,6 +25,7 @@ import {
   type ThemeExportData,
 } from "../../main-axios";
 import { cn } from "@/lib/utils.ts";
+import { DEFAULT_THEME, DEFAULT_THEME_ID } from "@/constants/defaultTheme";
 
 // Define all customizable CSS variables with semantic mapping
 const COLOR_VARIABLES = [
@@ -155,7 +156,10 @@ export const ColorSchemeSettings = () => {
   const loadThemes = async () => {
     try {
       const fetchedThemes = await getThemes();
-      setThemes(fetchedThemes);
+
+      // Add default theme at the beginning
+      const allThemes = [DEFAULT_THEME as ColorTheme, ...fetchedThemes];
+      setThemes(allThemes);
 
       // Find and set the active theme
       const active = fetchedThemes.find((t) => t.isActive);
@@ -165,6 +169,11 @@ export const ColorSchemeSettings = () => {
       if (!isAuthError(error)) {
         console.error("Failed to load themes:", error);
         toast.error("Failed to load themes");
+        // Even on error, show default theme
+        setThemes([DEFAULT_THEME as ColorTheme]);
+      } else {
+        // If user not logged in, still show default theme
+        setThemes([DEFAULT_THEME as ColorTheme]);
       }
     }
   };
@@ -235,6 +244,12 @@ export const ColorSchemeSettings = () => {
   };
 
   const handleEditTheme = (themeId: number) => {
+    // Prevent editing default theme
+    if (themeId === DEFAULT_THEME_ID) {
+      toast.error("Cannot edit the default theme");
+      return;
+    }
+
     const theme = themes.find((t) => t.id === themeId);
     if (theme) {
       const themeColors = typeof theme.colors === "string" ? JSON.parse(theme.colors) : theme.colors;
@@ -396,6 +411,12 @@ export const ColorSchemeSettings = () => {
   };
 
   const handleDeleteTheme = async (themeId: number) => {
+    // Prevent deleting default theme
+    if (themeId === DEFAULT_THEME_ID) {
+      toast.error("Cannot delete the default theme");
+      return;
+    }
+
     try {
       const theme = themes.find((t) => t.id === themeId);
       if (!theme) return;
@@ -419,6 +440,31 @@ export const ColorSchemeSettings = () => {
     } catch (error) {
       // Silently ignore authentication errors (user not logged in)
       if (!isAuthError(error)) {
+        console.error(error);
+      }
+    }
+  };
+
+  const handleRenameTheme = async (themeId: number, newName: string) => {
+    // Prevent renaming default theme
+    if (themeId === DEFAULT_THEME_ID) {
+      toast.error("Cannot rename the default theme");
+      return;
+    }
+
+    try {
+      const theme = themes.find((t) => t.id === themeId);
+      if (!theme) return;
+
+      const themeColors = typeof theme.colors === "string" ? JSON.parse(theme.colors) : theme.colors;
+
+      await updateTheme(themeId, newName, themeColors, theme.author);
+      toast.success(`Theme renamed to "${newName}"`);
+      await loadThemes();
+    } catch (error) {
+      // Silently ignore authentication errors (user not logged in)
+      if (!isAuthError(error)) {
+        toast.error("Failed to rename theme");
         console.error(error);
       }
     }
@@ -527,6 +573,7 @@ export const ColorSchemeSettings = () => {
                 onDuplicate={handleDuplicateTheme}
                 onExport={handleExportTheme}
                 onDelete={handleDeleteTheme}
+                onRename={handleRenameTheme}
               />
             ))}
           </div>

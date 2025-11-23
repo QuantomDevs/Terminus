@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
-import { Check, Pencil, Download } from "lucide-react";
+import { Input } from "@/components/ui/input.tsx";
+import { Check, Pencil, Download, MoreVertical, FileText, Trash2, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 import {
   Tooltip,
@@ -9,6 +10,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip.tsx";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu.tsx";
+import { DEFAULT_THEME_ID } from "@/constants/defaultTheme";
 
 export interface ColorTheme {
   id: number;
@@ -29,6 +38,7 @@ interface ThemeCardProps {
   onDuplicate: (themeId: number) => void;
   onExport: (themeId: number) => void;
   onDelete: (themeId: number) => void;
+  onRename: (themeId: number, newName: string) => void;
 }
 
 export function ThemeCard({
@@ -37,12 +47,30 @@ export function ThemeCard({
   onActivate,
   onEdit,
   onExport,
+  onDelete,
+  onRename,
 }: ThemeCardProps) {
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [newName, setNewName] = useState(theme.name);
+  const isDefaultTheme = theme.id === DEFAULT_THEME_ID;
+
   // Parse colors if stored as JSON string
   const colors =
     typeof theme.colors === "string"
       ? JSON.parse(theme.colors)
       : theme.colors;
+
+  const handleRenameSubmit = () => {
+    if (newName.trim() && newName !== theme.name) {
+      onRename(theme.id, newName.trim());
+    }
+    setIsRenaming(false);
+  };
+
+  const handleRenameCancel = () => {
+    setNewName(theme.name);
+    setIsRenaming(false);
+  };
 
   // Color variables with labels for tooltips
   const colorVariables = [
@@ -141,10 +169,37 @@ export function ThemeCard({
       {/* Theme Info */}
       <div className="p-3 border-t border-[var(--color-dark-border)]">
         <div className="mb-2">
-          <h3 className="text-sm font-semibold text-white truncate">
-            {theme.name}
-          </h3>
-          {theme.author && (
+          {isRenaming ? (
+            <div className="flex gap-1">
+              <Input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleRenameSubmit();
+                  if (e.key === "Escape") handleRenameCancel();
+                }}
+                className="h-7 text-sm bg-[var(--color-dark-bg-input)] border-[var(--color-dark-border)]"
+                autoFocus
+              />
+              <Button
+                size="sm"
+                onClick={handleRenameSubmit}
+                className="h-7 px-2 bg-[var(--color-primary)]"
+              >
+                <Check className="w-3 h-3" />
+              </Button>
+            </div>
+          ) : (
+            <h3 className="text-sm font-semibold text-white truncate">
+              {theme.name}
+              {isDefaultTheme && (
+                <Badge className="ml-2 bg-blue-600 text-white text-xs">
+                  Read-only
+                </Badge>
+              )}
+            </h3>
+          )}
+          {theme.author && !isRenaming && (
             <p className="text-xs text-gray-400 truncate">
               by {theme.author}
             </p>
@@ -188,22 +243,62 @@ export function ThemeCard({
                   e.stopPropagation();
                   onEdit(theme.id);
                 }}
+                disabled={isDefaultTheme}
+                title={isDefaultTheme ? "Cannot edit default theme" : "Edit theme"}
               >
                 <Pencil className="w-3 h-3 mr-1" />
                 Edit
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="flex-1 text-xs"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onExport(theme.id);
-                }}
-              >
-                <Download className="w-3 h-3 mr-1" />
-                Export
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-48 bg-[var(--color-dark-bg)] border-[var(--color-dark-border)]"
+                >
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onExport(theme.id);
+                    }}
+                    className="cursor-pointer hover:bg-[var(--color-dark-hover)] text-white"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Export
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsRenaming(true);
+                    }}
+                    disabled={isDefaultTheme}
+                    className="cursor-pointer hover:bg-[var(--color-dark-hover)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-[var(--color-dark-border)]" />
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(theme.id);
+                    }}
+                    disabled={isDefaultTheme}
+                    className="cursor-pointer hover:bg-red-600/10 text-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           ) : (
             <>
@@ -225,22 +320,71 @@ export function ThemeCard({
                   e.stopPropagation();
                   onEdit(theme.id);
                 }}
-                title="Edit theme"
+                disabled={isDefaultTheme}
+                title={isDefaultTheme ? "Cannot edit default theme" : "Edit theme"}
               >
                 <Pencil className="w-4 h-4" />
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-xs"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onExport(theme.id);
-                }}
-                title="Export theme"
-              >
-                <Download className="w-4 h-4" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-48 bg-[var(--color-dark-bg)] border-[var(--color-dark-border)]"
+                >
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onActivate(theme.id);
+                    }}
+                    className="cursor-pointer hover:bg-[var(--color-dark-hover)] text-white"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Apply
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onExport(theme.id);
+                    }}
+                    className="cursor-pointer hover:bg-[var(--color-dark-hover)] text-white"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Export
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsRenaming(true);
+                    }}
+                    disabled={isDefaultTheme}
+                    className="cursor-pointer hover:bg-[var(--color-dark-hover)] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-[var(--color-dark-border)]" />
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(theme.id);
+                    }}
+                    disabled={isDefaultTheme}
+                    className="cursor-pointer hover:bg-red-600/10 text-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           )}
         </div>
