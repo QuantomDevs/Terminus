@@ -184,17 +184,17 @@ const CredentialViewer: React.FC<CredentialViewerProps> = ({
 
   return (
     <Sheet open={true} onOpenChange={onClose}>
-      <SheetContent className="w-[600px] max-w-[50vw] overflow-y-auto">
+      <SheetContent className="w-full max-w-[90vw] sm:max-w-lg md:max-w-xl min-w-[280px] overflow-y-auto">
         <SheetHeader className="space-y-6 pb-8">
           <SheetTitle className="flex items-center space-x-4">
             <div className="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800">
               {getAuthIcon(credentialDetails.authType)}
             </div>
-            <div className="flex-1">
-              <div className="text-xl font-semibold">
+            <div className="flex-1 min-w-0">
+              <div className="text-base sm:text-lg md:text-xl font-semibold truncate">
                 {credentialDetails.name}
               </div>
-              <div className="text-sm font-normal text-zinc-600 dark:text-zinc-400 mt-1">
+              <div className="text-xs sm:text-sm font-normal text-zinc-600 dark:text-zinc-400 mt-1 truncate">
                 {credentialDetails.description}
               </div>
             </div>
@@ -218,38 +218,38 @@ const CredentialViewer: React.FC<CredentialViewerProps> = ({
         </SheetHeader>
 
         <div className="space-y-10">
-          <div className="flex space-x-2 p-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg">
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 p-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg">
             <Button
               variant={activeTab === "overview" ? "default" : "ghost"}
               size="sm"
               onClick={() => setActiveTab("overview")}
-              className="flex-1 h-10"
+              className="flex-1 h-10 justify-center"
             >
               <FileText className="h-4 w-4 mr-2" />
-              {t("credentials.overview")}
+              <span className="text-xs sm:text-sm">{t("credentials.overview")}</span>
             </Button>
             <Button
               variant={activeTab === "security" ? "default" : "ghost"}
               size="sm"
               onClick={() => setActiveTab("security")}
-              className="flex-1 h-10"
+              className="flex-1 h-10 justify-center"
             >
               <Shield className="h-4 w-4 mr-2" />
-              {t("credentials.security")}
+              <span className="text-xs sm:text-sm">{t("credentials.security")}</span>
             </Button>
             <Button
               variant={activeTab === "usage" ? "default" : "ghost"}
               size="sm"
               onClick={() => setActiveTab("usage")}
-              className="flex-1 h-10"
+              className="flex-1 h-10 justify-center"
             >
               <Server className="h-4 w-4 mr-2" />
-              {t("credentials.usage")}
+              <span className="text-xs sm:text-sm">{t("credentials.usage")}</span>
             </Button>
           </div>
 
           {activeTab === "overview" && (
-            <div className="grid gap-10 lg:grid-cols-2">
+            <div className="grid gap-6 sm:gap-8 md:gap-10 md:grid-cols-2">
               <Card className="border-zinc-200 dark:border-zinc-700">
                 <CardHeader className="pb-8">
                   <CardTitle className="text-lg font-semibold">

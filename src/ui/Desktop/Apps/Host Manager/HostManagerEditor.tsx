@@ -741,28 +741,28 @@ export function HostManagerEditor({
         >
           <ScrollArea className="flex-1 min-h-0 w-full my-1 pb-2">
             <Tabs defaultValue="general" className="w-full">
-              <TabsList>
-                <TabsTrigger value="general">{t("hosts.general")}</TabsTrigger>
-                <TabsTrigger value="terminal">
+              <TabsList className="overflow-x-auto flex justify-start whitespace-nowrap scrollbar-thin w-full">
+                <TabsTrigger value="general" className="text-xs sm:text-sm flex-shrink-0">{t("hosts.general")}</TabsTrigger>
+                <TabsTrigger value="terminal" className="text-xs sm:text-sm flex-shrink-0">
                   {t("hosts.terminal")}
                 </TabsTrigger>
-                <TabsTrigger value="tunnel">{t("hosts.tunnel")}</TabsTrigger>
-                <TabsTrigger value="file_manager">
+                <TabsTrigger value="tunnel" className="text-xs sm:text-sm flex-shrink-0">{t("hosts.tunnel")}</TabsTrigger>
+                <TabsTrigger value="file_manager" className="text-xs sm:text-sm flex-shrink-0">
                   {t("hosts.fileManager")}
                 </TabsTrigger>
-                <TabsTrigger value="statistics">Statistics</TabsTrigger>
+                <TabsTrigger value="statistics" className="text-xs sm:text-sm flex-shrink-0">Statistics</TabsTrigger>
               </TabsList>
               <TabsContent value="general" className="pt-2">
-                <FormLabel className="mb-3 font-bold">
+                <FormLabel className="mb-2 sm:mb-3 font-bold text-sm sm:text-base">
                   {t("hosts.connectionDetails")}
                 </FormLabel>
-                <div className="grid grid-cols-12 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-6 md:grid-cols-12 gap-2 sm:gap-3 md:gap-4">
                   <FormField
                     control={form.control}
                     name="ip"
                     render={({ field }) => (
-                      <FormItem className="col-span-5">
-                        <FormLabel>{t("hosts.ipAddress")}</FormLabel>
+                      <FormItem className="col-span-1 sm:col-span-3 md:col-span-5">
+                        <FormLabel className="text-xs sm:text-sm">{t("hosts.ipAddress")}</FormLabel>
                         <FormControl>
                           <Input
                             placeholder={t("placeholders.ipAddress")}
@@ -771,6 +771,7 @@ export function HostManagerEditor({
                               field.ref(e);
                               ipInputRef.current = e;
                             }}
+                            className="text-sm"
                           />
                         </FormControl>
                       </FormItem>
@@ -781,12 +782,13 @@ export function HostManagerEditor({
                     control={form.control}
                     name="port"
                     render={({ field }) => (
-                      <FormItem className="col-span-1">
-                        <FormLabel>{t("hosts.port")}</FormLabel>
+                      <FormItem className="col-span-1 sm:col-span-2 md:col-span-1">
+                        <FormLabel className="text-xs sm:text-sm">{t("hosts.port")}</FormLabel>
                         <FormControl>
                           <Input
                             placeholder={t("placeholders.port")}
                             {...field}
+                            className="text-sm"
                           />
                         </FormControl>
                       </FormItem>
@@ -797,32 +799,34 @@ export function HostManagerEditor({
                     control={form.control}
                     name="username"
                     render={({ field }) => (
-                      <FormItem className="col-span-6">
-                        <FormLabel>{t("hosts.username")}</FormLabel>
+                      <FormItem className="col-span-1 sm:col-span-full md:col-span-6">
+                        <FormLabel className="text-xs sm:text-sm">{t("hosts.username")}</FormLabel>
                         <FormControl>
                           <Input
                             placeholder={t("placeholders.username")}
                             {...field}
+                            className="text-sm"
                           />
                         </FormControl>
                       </FormItem>
                     )}
                   />
                 </div>
-                <FormLabel className="mb-3 mt-3 font-bold">
+                <FormLabel className="mb-2 sm:mb-3 mt-2 sm:mt-3 font-bold text-sm sm:text-base">
                   {t("hosts.organization")}
                 </FormLabel>
-                <div className="grid grid-cols-26 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-26 gap-2 sm:gap-3 md:gap-4">
                   <FormField
                     control={form.control}
                     name="name"
                     render={({ field }) => (
-                      <FormItem className="col-span-10">
-                        <FormLabel>{t("hosts.name")}</FormLabel>
+                      <FormItem className="col-span-1 md:col-span-10">
+                        <FormLabel className="text-xs sm:text-sm">{t("hosts.name")}</FormLabel>
                         <FormControl>
                           <Input
                             placeholder={t("placeholders.hostname")}
                             {...field}
+                            className="text-sm"
                           />
                         </FormControl>
                       </FormItem>
@@ -833,8 +837,8 @@ export function HostManagerEditor({
                     control={form.control}
                     name="folder"
                     render={({ field }) => (
-                      <FormItem className="col-span-10 relative">
-                        <FormLabel>{t("hosts.folder")}</FormLabel>
+                      <FormItem className="col-span-1 md:col-span-10 relative">
+                        <FormLabel className="text-xs sm:text-sm">{t("hosts.folder")}</FormLabel>
                         <FormControl>
                           <Input
                             ref={folderInputRef}
@@ -878,8 +882,8 @@ export function HostManagerEditor({
                     control={form.control}
                     name="tags"
                     render={({ field }) => (
-                      <FormItem className="col-span-10 overflow-visible">
-                        <FormLabel>{t("hosts.tags")}</FormLabel>
+                      <FormItem className="col-span-1 md:col-span-10 overflow-visible">
+                        <FormLabel className="text-xs sm:text-sm">{t("hosts.tags")}</FormLabel>
                         <FormControl>
                           <div className="flex flex-wrap items-center gap-1 border border-input rounded-md px-3 py-2 bg-dark-bg-input focus-within:ring-2 ring-ring min-h-[40px]">
                             {field.value.map((tag: string, idx: number) => (

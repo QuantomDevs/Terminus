@@ -83,13 +83,13 @@ export function HostManager({
     <div>
       <div className="w-full">
         <div
-          className="bg-dark-bg text-white p-4 pt-0 flex flex-col min-h-0 overflow-hidden"
+          className="bg-dark-bg text-white flex flex-col min-h-0 overflow-hidden"
           style={{
             marginLeft: leftMarginPx,
             marginRight: leftMarginPx,
             marginTop: topMarginPx,
             marginBottom: bottomMarginPx,
-            padding: 16,
+            padding: "8px",
             height: `calc(100vh - ${topMarginPx + bottomMarginPx}px)`,
           }}
         >
@@ -98,22 +98,22 @@ export function HostManager({
             onValueChange={handleTabChange}
             className="flex-1 flex flex-col h-full min-h-0"
           >
-            <TabsList className="bg-dark-bg border-2 border-dark-border mt-1.5">
-              <TabsTrigger value="host_viewer">
+            <TabsList className="bg-dark-bg border-2 border-dark-border mt-1.5 overflow-x-auto flex justify-start whitespace-nowrap scrollbar-thin w-full">
+              <TabsTrigger value="host_viewer" className="text-xs sm:text-sm flex-shrink-0">
                 {t("hosts.hostViewer")}
               </TabsTrigger>
-              <TabsTrigger value="add_host">
+              <TabsTrigger value="add_host" className="text-xs sm:text-sm flex-shrink-0">
                 {editingHost
                   ? editingHost.id
                     ? t("hosts.editHost")
                     : t("hosts.cloneHost")
                   : t("hosts.addHost")}
               </TabsTrigger>
-              <div className="h-6 w-px bg-dark-border mx-1"></div>
-              <TabsTrigger value="credentials">
+              <div className="h-6 w-px bg-dark-border mx-1 hidden sm:block"></div>
+              <TabsTrigger value="credentials" className="text-xs sm:text-sm flex-shrink-0">
                 {t("credentials.credentialsViewer")}
               </TabsTrigger>
-              <TabsTrigger value="add_credential">
+              <TabsTrigger value="add_credential" className="text-xs sm:text-sm flex-shrink-0">
                 {editingCredential
                   ? t("credentials.editCredential")
                   : t("credentials.addCredential")}

@@ -442,15 +442,15 @@ export function CredentialEditor({
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="general" className="pt-2">
-                <FormLabel className="mb-2 font-bold">
+                <FormLabel className="mb-2 font-bold text-sm sm:text-base">
                   {t("credentials.basicInformation")}
                 </FormLabel>
-                <div className="grid grid-cols-12 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-3">
                   <FormField
                     control={form.control}
                     name="name"
                     render={({ field }) => (
-                      <FormItem className="col-span-6">
+                      <FormItem className="col-span-1 md:col-span-6">
                         <FormLabel>{t("credentials.credentialName")}</FormLabel>
                         <FormControl>
                           <Input
@@ -466,7 +466,7 @@ export function CredentialEditor({
                     control={form.control}
                     name="username"
                     render={({ field }) => (
-                      <FormItem className="col-span-6">
+                      <FormItem className="col-span-1 md:col-span-6">
                         <FormLabel>{t("credentials.username")}</FormLabel>
                         <FormControl>
                           <Input
@@ -478,15 +478,15 @@ export function CredentialEditor({
                     )}
                   />
                 </div>
-                <FormLabel className="mb-2 mt-4 font-bold">
+                <FormLabel className="mb-2 mt-3 sm:mt-4 font-bold text-sm sm:text-base">
                   {t("credentials.organization")}
                 </FormLabel>
-                <div className="grid grid-cols-26 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-26 gap-2 md:gap-3">
                   <FormField
                     control={form.control}
                     name="description"
                     render={({ field }) => (
-                      <FormItem className="col-span-10">
+                      <FormItem className="col-span-1 md:col-span-10">
                         <FormLabel>{t("credentials.description")}</FormLabel>
                         <FormControl>
                           <Input

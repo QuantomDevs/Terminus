@@ -616,8 +616,8 @@ export function CredentialsManager({
                         </Badge>
                       </div>
                     </AccordionTrigger>
-                    <AccordionContent className="p-2">
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                    <AccordionContent className="p-1 sm:p-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
                         {folderCredentials.map((credential) => (
                           <TooltipProvider key={credential.id}>
                             <Tooltip>
@@ -628,7 +628,7 @@ export function CredentialsManager({
                                     handleDragStart(e, credential)
                                   }
                                   onDragEnd={handleDragEnd}
-                                  className={`bg-dark-bg-input border border-input rounded-lg cursor-pointer hover:shadow-lg hover:border-blue-400/50 hover:bg-dark-hover-alt transition-all duration-200 p-3 group relative ${
+                                  className={`bg-dark-bg-input border border-input rounded-lg cursor-pointer hover:shadow-lg hover:border-blue-400/50 hover:bg-dark-hover-alt transition-all duration-200 p-2 sm:p-3 group relative ${
                                     draggedCredential?.id === credential.id
                                       ? "opacity-50 scale-95"
                                       : ""
@@ -830,18 +830,18 @@ export function CredentialsManager({
       )}
 
       <Sheet open={showDeployDialog} onOpenChange={setShowDeployDialog}>
-        <SheetContent className="w-[500px] max-w-[50vw] overflow-y-auto">
-          <div className="px-4 py-4">
-            <div className="space-y-3 pb-4">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
-                  <Upload className="h-5 w-5 text-green-600 dark:text-green-400" />
+        <SheetContent className="w-full max-w-[90vw] sm:max-w-md md:max-w-lg min-w-[280px] overflow-y-auto">
+          <div className="px-3 py-3 sm:px-4 sm:py-4">
+            <div className="space-y-2 sm:space-y-3 pb-3 sm:pb-4">
+              <div className="flex items-center space-x-2 sm:space-x-3">
+                <div className="p-1.5 sm:p-2 rounded-lg bg-green-100 dark:bg-green-900/30 flex-shrink-0">
+                  <Upload className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 dark:text-green-400" />
                 </div>
-                <div className="flex-1">
-                  <div className="text-lg font-semibold">
+                <div className="flex-1 min-w-0">
+                  <div className="text-base sm:text-lg font-semibold truncate">
                     {t("credentials.deploySSHKey")}
                   </div>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-xs sm:text-sm text-muted-foreground truncate">
                     {t("credentials.deploySSHKeyDescription")}
                   </div>
                 </div>

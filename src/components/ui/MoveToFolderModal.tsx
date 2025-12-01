@@ -71,37 +71,39 @@ export function MoveToFolderModal({
       onClick={handleClose}
     >
       <div
-        className="bg-dark-bg border-2 border-dark-border rounded-lg shadow-2xl w-[500px] max-w-[90vw] flex flex-col overflow-hidden"
+        className="bg-dark-bg border-2 border-dark-border rounded-lg shadow-2xl w-full max-w-[90vw] min-w-[280px] sm:max-w-md md:max-w-lg flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b-2 border-dark-border">
-          <h2 className="text-lg font-semibold text-white">Move Hosts to Folder</h2>
-          <p className="text-sm text-gray-400 mt-1">
+        <div className="px-3 py-3 sm:px-4 sm:py-3 md:px-6 md:py-4 border-b-2 border-dark-border">
+          <h2 className="text-base sm:text-lg font-semibold text-white">Move Hosts to Folder</h2>
+          <p className="text-xs sm:text-sm text-gray-400 mt-1">
             Move {selectedCount} selected host{selectedCount > 1 ? "s" : ""} to a folder
           </p>
         </div>
 
         {/* Content */}
-        <div className="px-6 py-4 space-y-4">
-          <div className="flex items-center gap-2 mb-4">
+        <div className="px-3 py-3 sm:px-4 sm:py-3 md:px-6 md:py-4 space-y-3 sm:space-y-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mb-3 sm:mb-4">
             <Button
               variant={!isCreatingNew ? "default" : "outline"}
               size="sm"
               onClick={() => setIsCreatingNew(false)}
-              className="flex-1"
+              className="flex-1 justify-center"
             >
               <Folder className="h-4 w-4 mr-2" />
-              Existing Folder
+              <span className="hidden sm:inline">Existing Folder</span>
+              <span className="sm:hidden">Existing</span>
             </Button>
             <Button
               variant={isCreatingNew ? "default" : "outline"}
               size="sm"
               onClick={() => setIsCreatingNew(true)}
-              className="flex-1"
+              className="flex-1 justify-center"
             >
               <FolderPlus className="h-4 w-4 mr-2" />
-              New Folder
+              <span className="hidden sm:inline">New Folder</span>
+              <span className="sm:hidden">New</span>
             </Button>
           </div>
 
@@ -138,7 +140,7 @@ export function MoveToFolderModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t-2 border-dark-border bg-dark-bg-darker flex justify-end gap-2">
+        <div className="px-3 py-3 sm:px-4 sm:py-3 md:px-6 md:py-4 border-t-2 border-dark-border bg-dark-bg-darker flex justify-end gap-2">
           <Button variant="outline" onClick={handleClose}>
             Cancel
           </Button>

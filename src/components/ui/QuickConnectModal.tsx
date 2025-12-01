@@ -152,11 +152,11 @@ export function QuickConnectModal({
       onClick={onClose}
     >
       <div
-        className="bg-dark-bg border-2 border-dark-border rounded-lg shadow-2xl w-[600px] max-h-[500px] flex flex-col overflow-hidden"
+        className="bg-dark-bg border-2 border-dark-border rounded-lg shadow-2xl w-full max-w-[90vw] min-w-[280px] sm:max-w-md md:max-w-lg lg:max-w-xl max-h-[80vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search Bar */}
-        <div className="flex items-center gap-2 p-4 border-b-2 border-dark-border">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-3 sm:p-4 border-b-2 border-dark-border">
           <div className="flex-1 relative">
             <input
               ref={searchInputRef}
@@ -172,9 +172,9 @@ export function QuickConnectModal({
               autoComplete="off"
             />
           </div>
-          <div className="flex items-center gap-2 px-3 py-2 bg-dark-bg-input border-2 border-dark-border rounded-md">
+          <div className="flex items-center justify-center gap-2 px-3 py-2 bg-dark-bg-input border-2 border-dark-border rounded-md whitespace-nowrap">
             <span className="text-sm font-medium text-white">{mode}</span>
-            <span className="text-xs text-gray-500">(Tab)</span>
+            <span className="text-xs text-gray-500 hidden xs:inline">(Tab)</span>
           </div>
         </div>
 
@@ -182,7 +182,7 @@ export function QuickConnectModal({
         <div
           ref={listRef}
           className="flex-1 overflow-y-auto p-2"
-          style={{ minHeight: "300px" }}
+          style={{ minHeight: "200px" }}
         >
           {filteredHosts.length === 0 ? (
             <div className="flex items-center justify-center h-full text-gray-500">
@@ -229,10 +229,10 @@ export function QuickConnectModal({
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-2 border-t-2 border-dark-border bg-dark-bg-darker">
-          <div className="flex items-center justify-between text-xs text-gray-500">
-            <span>↑↓ Navigate</span>
-            <span>Tab Switch Mode</span>
+        <div className="px-3 py-2 sm:px-4 border-t-2 border-dark-border bg-dark-bg-darker">
+          <div className="flex items-center justify-between gap-1 text-xs text-gray-500 flex-wrap sm:flex-nowrap">
+            <span className="hidden sm:inline">↑↓ Navigate</span>
+            <span className="hidden md:inline">Tab Switch Mode</span>
             <span>Enter Connect</span>
             <span>Esc Close</span>
           </div>

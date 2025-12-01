@@ -786,9 +786,10 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
               <>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="default" size="sm" disabled={operationLoading}>
-                      Actions ({selectedHosts.size})
-                      <ChevronDown className="h-3.5 w-3.5 ml-1.5" />
+                    <Button variant="default" size="sm" disabled={operationLoading} className="text-xs sm:text-sm">
+                      <span className="hidden sm:inline">Actions ({selectedHosts.size})</span>
+                      <span className="sm:hidden">({selectedHosts.size})</span>
+                      <ChevronDown className="h-3 w-3 sm:h-3.5 sm:w-3.5 ml-1 sm:ml-1.5" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -860,14 +861,14 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="flex items-center justify-between mb-2">
-        <div>
-          <h2 className="text-xl font-semibold">{t("hosts.sshHosts")}</h2>
-          <p className="text-muted-foreground">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2 gap-2">
+        <div className="min-w-0 flex-shrink">
+          <h2 className="text-base sm:text-lg md:text-xl font-semibold truncate">{t("hosts.sshHosts")}</h2>
+          <p className="text-xs sm:text-sm text-muted-foreground truncate">
             {t("hosts.hostsCount", { count: filteredAndSortedHosts.length })}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1021,12 +1022,12 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
       />
 
       <div className="relative mb-3">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
         <Input
           placeholder={t("placeholders.searchHosts")}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
+          className="pl-8 sm:pl-10 text-sm"
         />
       </div>
 
@@ -1055,10 +1056,10 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
                       checked={folderHosts.every((h) => selectedHosts.has(h.id))}
                       onCheckedChange={() => toggleSelectAll(folderHosts)}
                       onClick={(e) => e.stopPropagation()}
-                      className="mr-2"
+                      className="mr-1 sm:mr-2 flex-shrink-0"
                     />
-                    <AccordionTrigger className="flex-1 hover:no-underline py-0">
-                      <div className="flex items-center gap-2 flex-1">
+                    <AccordionTrigger className="flex-1 hover:no-underline py-0 min-w-0">
+                      <div className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0">
                         <Folder className="h-4 w-4" />
                       {editingFolder === folder ? (
                         <div
@@ -1106,7 +1107,7 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
                       ) : (
                         <>
                           <span
-                            className="font-medium cursor-pointer hover:text-blue-400 transition-colors"
+                            className="font-medium cursor-pointer hover:text-blue-400 transition-colors text-xs sm:text-sm truncate"
                             onClick={(e) => {
                               e.stopPropagation();
                               if (folder !== t("hosts.uncategorized")) {
@@ -1135,14 +1136,14 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
                           )}
                         </>
                       )}
-                        <Badge variant="secondary" className="text-xs">
+                        <Badge variant="secondary" className="text-xs flex-shrink-0">
                           {folderHosts.length}
                         </Badge>
                       </div>
                     </AccordionTrigger>
                   </div>
-                  <AccordionContent className="p-2">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                  <AccordionContent className="p-1 sm:p-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
                       {folderHosts.map((host) => (
                         <TooltipProvider key={host.id}>
                           <Tooltip>
@@ -1151,7 +1152,7 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
                                 draggable
                                 onDragStart={(e) => handleDragStart(e, host)}
                                 onDragEnd={handleDragEnd}
-                                className={`bg-dark-bg-input border border-input rounded-lg cursor-pointer hover:shadow-lg hover:border-blue-400/50 hover:bg-dark-hover-alt transition-all duration-200 p-3 group relative ${
+                                className={`bg-dark-bg-input border border-input rounded-lg cursor-pointer hover:shadow-lg hover:border-blue-400/50 hover:bg-dark-hover-alt transition-all duration-200 p-2 sm:p-3 group relative ${
                                   draggedHost?.id === host.id
                                     ? "opacity-50 scale-95"
                                     : ""
@@ -1184,7 +1185,7 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
                                       </p>
                                     </div>
                                   </div>
-                                  <div className="flex gap-1 flex-shrink-0 ml-1">
+                                  <div className="hidden sm:flex gap-1 flex-shrink-0 ml-1">
                                     {host.folder && host.folder !== "" && (
                                       <Tooltip>
                                         <TooltipTrigger asChild>
@@ -1366,7 +1367,7 @@ export function HostManagerViewer({ onEditHost }: SSHManagerHostViewerProps) {
                                     )}
                                   </div>
 
-                                  <div className="flex gap-2 mt-2">
+                                  <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 mt-2">
                                     <Button
                                       size="sm"
                                       variant="outline"
