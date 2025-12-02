@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Terminal } from "../Desktop/Apps/Terminal/Terminal";
-import FileManager from "../Desktop/Apps/File Manager/FileManager";
+import { FileManager } from "../Desktop/Apps/File Manager/FileManager";
 import { ThemeProvider } from "@/components/theme-provider";
 import type { SSHHost } from "@/types";
 import "./VSCodeSingleSessionApp.css";
