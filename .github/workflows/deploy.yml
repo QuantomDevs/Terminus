@@ -271,11 +271,89 @@ jobs:
           retention-days: 90
 
   # ============================================
+  # VS Code Extension Build (Platform-Specific)
+  # ============================================
+  build-vscode-extension:
+    name: Build VS Code Extension (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    if: github.event_name == 'push'
+
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x64
+          - os: ubuntu-latest
+            target: win32-x64
+          - os: macos-latest
+            target: darwin-x64
+          - os: macos-14
+            target: darwin-arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install VS Code CLI (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
+          sudo install -D -o root -g root -m 644 packages.microsoft.gpg /etc/apt/keyrings/packages.microsoft.gpg
+          sudo sh -c 'echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list'
+          rm -f packages.microsoft.gpg
+          sudo apt-get update
+          sudo apt-get install -y code
+          code --version
+
+      - name: Install VS Code CLI (macOS)
+        if: matrix.os == 'macos-latest' || matrix.os == 'macos-14'
+        run: |
+          brew install --cask visual-studio-code
+          code --version
+
+      - name: Build backend
+        run: npm run build:backend
+
+      - name: Build frontend for VS Code
+        run: npm run build:vscode:frontend
+
+      - name: Build extension
+        working-directory: vscode-extension
+        run: |
+          npm install
+          VSCODE_ELECTRON_VERSION=$(code --version | head -n 1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "29.0.0")
+          export VSCODE_ELECTRON_VERSION
+          npm run compile
+
+      - name: Package extension
+        working-directory: vscode-extension
+        run: |
+          npx vsce package --target ${{ matrix.target }}
+
+      - name: Upload VSIX Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terminus-vscode-${{ matrix.target }}
+          path: vscode-extension/*.vsix
+          retention-days: 90
+
+  # ============================================
   # Create GitHub Release
   # ============================================
   create-release:
     name: Create GitHub Release
-    needs: [publish, build-electron-windows, build-electron-linux, build-electron-macos]
+    needs: [publish, build-electron-windows, build-electron-linux, build-electron-macos, build-vscode-extension]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -476,6 +554,35 @@ jobs:
           name: Terminus-macOS-DMG
           path: ./artifacts
 
+      # Download VS Code extension artifacts
+      - name: Download VS Code Extensions (Linux x64)
+        if: steps.version_check.outputs.versionChanged == 'true'
+        uses: actions/download-artifact@v6
+        with:
+          name: terminus-vscode-linux-x64
+          path: ./artifacts/vscode
+
+      - name: Download VS Code Extensions (Windows x64)
+        if: steps.version_check.outputs.versionChanged == 'true'
+        uses: actions/download-artifact@v6
+        with:
+          name: terminus-vscode-win32-x64
+          path: ./artifacts/vscode
+
+      - name: Download VS Code Extensions (macOS x64)
+        if: steps.version_check.outputs.versionChanged == 'true'
+        uses: actions/download-artifact@v6
+        with:
+          name: terminus-vscode-darwin-x64
+          path: ./artifacts/vscode
+
+      - name: Download VS Code Extensions (macOS ARM64)
+        if: steps.version_check.outputs.versionChanged == 'true'
+        uses: actions/download-artifact@v6
+        with:
+          name: terminus-vscode-darwin-arm64
+          path: ./artifacts/vscode
+
       # Upload all Electron builds to release
       - name: Upload Electron Apps to Release
         if: steps.version_check.outputs.versionChanged == 'true'
@@ -485,9 +592,18 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           release-tag: "v${{ steps.package_version.outputs.version }}"
 
+      # Upload VS Code extensions to release
+      - name: Upload VS Code Extensions to Release
+        if: steps.version_check.outputs.versionChanged == 'true'
+        uses: AButler/upload-release-assets@v2.0
+        with:
+          files: "artifacts/vscode/*.vsix"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          release-tag: "v${{ steps.package_version.outputs.version }}"
+
   summary:
     name: Deployment Summary
-    needs: [publish, build-electron-windows, build-electron-linux, build-electron-macos]
+    needs: [publish, build-electron-windows, build-electron-linux, build-electron-macos, build-vscode-extension]
     runs-on: ubuntu-latest
     if: always()
 

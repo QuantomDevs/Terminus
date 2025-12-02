@@ -3,9 +3,10 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import DesktopApp from "./ui/Desktop/DesktopApp.tsx";
 import { MobileApp } from "./ui/Mobile/MobileApp.tsx";
+import { VSCodeSingleSessionApp } from "./ui/VSCode/VSCodeSingleSessionApp.tsx";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./i18n/i18n";
-import { isElectron } from "./ui/main-axios.ts";
+import { isElectron, isVSCode, isSingleSessionMode } from "./ui/main-axios.ts";
 
 function useWindowWidth() {
   const [width, setWidth] = useState(window.innerWidth);
@@ -56,10 +57,22 @@ function useWindowWidth() {
 function RootApp() {
   const width = useWindowWidth();
   const isMobile = width < 768;
+
+  // Check if running in VS Code single-session mode
+  const isSingleSession = isSingleSessionMode();
+  const hostConfig = (window as any).HOST_CONFIG;
+
+  // VS Code: Single session mode with host config
+  if (isVSCode() && isSingleSession && hostConfig) {
+    return <VSCodeSingleSessionApp hostConfig={hostConfig} />;
+  }
+
+  // Electron: Always desktop layout
   if (isElectron()) {
     return <DesktopApp />;
   }
 
+  // Web: Responsive mobile/desktop
   return isMobile ? <MobileApp key="mobile" /> : <DesktopApp key="desktop" />;
 }
 

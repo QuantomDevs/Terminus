@@ -25,7 +25,13 @@
     "migrate:encryption": "tsc -p tsconfig.node.json && node ./dist/backend/backend/utils/encryption-migration.js",
     "build:dmg": "npm run build && electron-builder --mac dmg --publish=never",
     "build:signed": "npm run build:dmg",
-    "build:all": "npm run build && electron-builder --mac --linux --win --publish=never"
+    "build:all": "npm run build && electron-builder --mac --linux --win --publish=never",
+    "build:vscode": "npm run build:backend && npm run build:vscode:frontend && npm run build:vscode:extension",
+    "build:vscode:frontend": "vite build --outDir vscode-extension/dist/frontend",
+    "build:vscode:extension": "cd vscode-extension && npm install && npm run compile",
+    "watch:vscode": "cd vscode-extension && npm run watch",
+    "package:vscode": "cd vscode-extension && npm run package",
+    "dev:vscode": "npm run build:backend && concurrently \"npm run watch:vscode\" \"code --extensionDevelopmentPath=${PWD}/vscode-extension\""
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.19.1",

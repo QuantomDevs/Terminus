@@ -432,6 +432,14 @@ function createApiInstance(
 // API INSTANCES
 // ============================================================================
 
+export function isVSCode(): boolean {
+  return !!(window as any).IS_VSCODE;
+}
+
+export function isSingleSessionMode(): boolean {
+  return !!(window as any).SINGLE_SESSION_MODE;
+}
+
 function isDev(): boolean {
   if (isElectron()) {
     return false;
@@ -453,6 +461,8 @@ let configuredServerUrl: string | null = null;
 
 if (isElectron()) {
   apiPort = 30001;
+} else if (isVSCode()) {
+  apiPort = (window as any).BACKEND_PORT || 30001;
 }
 
 export interface ServerConfig {
@@ -544,6 +554,12 @@ export async function checkElectronUpdate(): Promise<{
 }
 
 function getApiUrl(path: string, defaultPort: number, forcePort: boolean = false): string {
+  // VS Code: Use backend port from window.BACKEND_PORT
+  if (isVSCode()) {
+    const backendPort = (window as any).BACKEND_PORT || 30001;
+    return `http://localhost:${backendPort}${path}`;
+  }
+
   if (isDev()) {
     const protocol = window.location.protocol === "https:" ? "https" : "http";
     const sslPort = protocol === "https" ? 8443 : defaultPort;

@@ -67,5 +67,9 @@ declare global {
   interface Window {
     electronAPI: ElectronAPI;
     IS_ELECTRON: boolean;
+    IS_VSCODE: boolean;
+    BACKEND_PORT: number;
+    SINGLE_SESSION_MODE: boolean;
+    HOST_CONFIG: any;
   }
 }
