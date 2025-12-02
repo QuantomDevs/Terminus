@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { SSHHost } from '../types';
@@ -170,7 +171,6 @@ export class WebviewProvider {
         baseName: string,
         extension: string
     ): vscode.Uri {
-        const fs = require('fs');
         const assetsPath = path.join(distPath, 'assets');
 
         try {
