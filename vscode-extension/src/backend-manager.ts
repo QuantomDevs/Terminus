@@ -50,7 +50,7 @@ export class BackendManager {
 
         // Get backend path
         const backendPath = this.context.asAbsolutePath(
-            path.join('..', 'dist', 'backend', 'backend', 'starter.js')
+            path.join('dist', 'backend', 'backend', 'starter.js')
         );
 
         if (!fs.existsSync(backendPath)) {
